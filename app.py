@@ -11,6 +11,8 @@ from calendar import monthrange
 import time
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.action_chains import ActionChains
+import os
+from datetime import datetime
 
 def iniciar_selenium():
     chrome_options = Options()
@@ -850,6 +852,7 @@ def dados_bancarios(driver, cpf_responsavel, banco, agencia, conta, dv, erro_val
             time.sleep(2)  # Espera para a página carregar
         
         # Cria a action chain para simular digitação humana
+        
         action = ActionChains(driver)
         
         # Função auxiliar para simular digitação humana em qualquer campo
@@ -1197,7 +1200,320 @@ def enviar_documento(driver):
         print(f"Erro no processo de envio do documento: {str(e)}")
         return False
 
+def inicializar_planilha_status(empresa, arquivo_comp='comp.xlsx'):
+    """
+    Inicializa uma planilha de status para a empresa especificada.
+    Copia todas as competências da planilha comp.xlsx e adiciona colunas de status.
+    
+    Args:
+        empresa: Nome da empresa para criar a planilha
+        arquivo_comp: Arquivo de competências de origem (padrão: comp.xlsx)
+        
+    Returns:
+        Caminho para o arquivo de status criado
+    """
+    try:
+        print(f"\n==== INICIALIZANDO PLANILHA DE STATUS PARA {empresa} ====")
+        
+        # Carrega as competências da planilha original
+        df_comp = pd.read_excel(arquivo_comp)
+        
+        # Cria um novo DataFrame com as mesmas competências
+        df_status = df_comp.copy()
+        
+        # Garantir que a coluna COMP_STR existe
+        if 'COMP_STR' not in df_status.columns:
+            df_status['COMP_STR'] = df_status['COMP'].astype(str).str.strip()
+            print("Criada coluna COMP_STR necessária para o rastreamento de competências")
+        
+        # Adiciona colunas de status no formato solicitado
+        df_status['competencia'] = df_status['COMP_STR']  # Adiciona coluna de competência
+        df_status['Sucesso'] = False
+        df_status['falha'] = False
+        df_status['pendente'] = True
+        
+        # Formato do nome do arquivo: NOME_DA_EMPRESA.xlsx
+        nome_arquivo = f"{empresa.strip().upper().replace(' ', '_')}.xlsx"
+        caminho_arquivo = os.path.join(os.path.dirname(os.path.abspath(__file__)), nome_arquivo)
+        
+        # Salva o DataFrame como Excel
+        df_status.to_excel(caminho_arquivo, index=False)
+        
+        print(f"✅ Planilha de status criada: {nome_arquivo}")
+        print(f"✅ Total de {len(df_status)} competências inicializadas como pendentes")
+        
+        # Verifica se a coluna COMP_STR foi salva corretamente
+        df_verificacao = pd.read_excel(caminho_arquivo)
+        if 'competencia' in df_verificacao.columns:
+            print("✅ Coluna competencia verificada e confirmada na planilha")
+        else:
+            print("⚠️ ATENÇÃO: Coluna competencia não encontrada na planilha após salvamento!")
+            # Tenta corrigir
+            df_verificacao['competencia'] = df_verificacao['COMP_STR']
+            df_verificacao.to_excel(caminho_arquivo, index=False)
+            print("✅ Coluna competencia adicionada e planilha resalvada")
+            
+        return caminho_arquivo
+    
+    except Exception as e:
+        print(f"❌ Erro ao inicializar planilha de status: {str(e)}")
+        return None
+
+def atualizar_status_competencia(arquivo_status, competencia, sucesso=False, falha=False):
+    """
+    Atualiza o status de uma competência específica na planilha de acompanhamento
+    
+    Args:
+        arquivo_status: Caminho para o arquivo Excel de status
+        competencia: String da competência a atualizar (formato: "MM/AAAA")
+        sucesso: Flag indicando se foi bem-sucedido
+        falha: Flag indicando se falhou
+        
+    Returns:
+        True se a atualização foi bem-sucedida, False caso contrário
+    """
+    try:
+        print(f"\n==== ATUALIZANDO STATUS DA COMPETÊNCIA {competencia} ====")
+        
+        # Carrega a planilha de status
+        df_status = pd.read_excel(arquivo_status)
+        
+        # Verifica se a coluna competencia existe
+        if 'competencia' not in df_status.columns:
+            print(f"⚠️ Coluna competencia não encontrada na planilha. Criando coluna...")
+            df_status['competencia'] = df_status['COMP_STR'].astype(str).str.strip()
+            # Salva a planilha corrigida
+            df_status.to_excel(arquivo_status, index=False)
+            print("✅ Coluna competencia criada e planilha atualizada")
+        
+        # Localiza a linha da competência
+        mascara = df_status['competencia'] == competencia
+        
+        if not mascara.any():
+            print(f"❌ Competência {competencia} não encontrada na planilha!")
+            
+            # Mostrar quais competências estão disponíveis para debug
+            print("Competências disponíveis na planilha:")
+            competencias_disponiveis = df_status['competencia'].tolist()
+            for i, comp in enumerate(competencias_disponiveis[:10], 1):
+                print(f"  {i}. '{comp}'")
+            if len(competencias_disponiveis) > 10:
+                print(f"  ... e mais {len(competencias_disponiveis) - 10} competências")
+                
+            # Tenta encontrar a competência por número
+            try:
+                comp_numerica = competencia.split("/")[0]
+                ano = competencia.split("/")[1]
+                mascara_alternativa = df_status['competencia'].str.contains(f"{comp_numerica}/{ano}")
+                if mascara_alternativa.any():
+                    print(f"Encontrada competência similar usando busca parcial: {comp_numerica}/{ano}")
+                    mascara = mascara_alternativa
+                else:
+                    return False
+            except:
+                return False
+        
+        # Atualiza o status conforme flags
+        df_status.loc[mascara, 'Sucesso'] = sucesso
+        df_status.loc[mascara, 'falha'] = falha
+        df_status.loc[mascara, 'pendente'] = not (sucesso or falha)
+        
+        # Salva as alterações
+        df_status.to_excel(arquivo_status, index=False)
+        
+        status = "SUCESSO" if sucesso else "FALHA" if falha else "PENDENTE"
+        print(f"✅ Status da competência {competencia} atualizado para: {status}")
+        
+        # Exibe estatísticas atuais
+        total = len(df_status)
+        sucessos = df_status['Sucesso'].sum()
+        falhas = df_status['falha'].sum()
+        pendentes = df_status['pendente'].sum()
+        
+        print(f"\nEstatísticas atuais:")
+        print(f"- Competências processadas com sucesso: {sucessos} de {total} ({sucessos/total*100:.1f}%)")
+        print(f"- Competências com falha: {falhas} de {total} ({falhas/total*100:.1f}%)")
+        print(f"- Competências pendentes: {pendentes} de {total} ({pendentes/total*100:.1f}%)")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Erro ao atualizar status da competência {competencia}: {str(e)}")
+        print("Detalhes do erro:")
+        import traceback
+        traceback.print_exc()
+        return False
+
+def gerar_relatorio_final(arquivo_status):
+    """
+    Gera um relatório final do processamento, exibindo estatísticas completas
+    e salva um backup da planilha de status com timestamp
+    
+    Args:
+        arquivo_status: Caminho para o arquivo Excel de status
+    """
+    try:
+        print("\n\n==== RELATÓRIO FINAL DE PROCESSAMENTO ====")
+        
+        # Carrega a planilha de status
+        df_status = pd.read_excel(arquivo_status)
+        
+        # Calcula estatísticas
+        total = len(df_status)
+        sucessos = df_status['Sucesso'].sum()
+        falhas = df_status['falha'].sum()
+        pendentes = df_status['pendente'].sum()
+        
+        # Criar um timestamp para o nome do backup
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        nome_arquivo = os.path.basename(arquivo_status)
+        nome_base, extensao = os.path.splitext(nome_arquivo)
+        nome_backup = f"{nome_base}_backup_{timestamp}{extensao}"
+        caminho_backup = os.path.join(os.path.dirname(arquivo_status), nome_backup)
+        
+        # Salva uma cópia da planilha como backup com timestamp
+        df_status.to_excel(caminho_backup, index=False)
+        
+        # Exibe estatísticas detalhadas
+        print("\nEstatísticas finais de processamento:")
+        print(f"- Total de competências: {total}")
+        print(f"- Processadas com sucesso: {sucessos} ({sucessos/total*100:.1f}%)")
+        print(f"- Falhas: {falhas} ({falhas/total*100:.1f}%)")
+        print(f"- Pendentes: {pendentes} ({pendentes/total*100:.1f}%)")
+        print(f"\nPlanilha de status salva em: {arquivo_status}")
+        print(f"Backup salvo em: {caminho_backup}")
+        
+    except Exception as e:
+        print(f"❌ Erro ao gerar relatório final: {str(e)}")
+
+def encontrar_dados_bancarios(nome_empresa):
+    """
+    Encontra os dados bancários da empresa na planilha centralizada.
+    
+    Args:
+        nome_empresa: Nome da empresa para buscar os dados
+        
+    Returns:
+        Dicionário com os dados bancários ou None se não encontrados
+    """
+    try:
+        # Procura a planilha em diferentes locais possíveis
+        possiveis_caminhos = [
+            os.path.join('db', 'status', 'dados_bancarios', 'save', 'Dados_bancarios.xlsx'),
+            os.path.join('db', 'status', 'dados_bancarios', 'Dados_bancarios.xlsx'),
+            os.path.join('status', 'dados_bancarios', 'save', 'Dados_bancarios.xlsx')
+        ]
+        
+        arquivo_dados = None
+        for caminho in possiveis_caminhos:
+            if os.path.exists(caminho):
+                arquivo_dados = caminho
+                break
+                
+        if not arquivo_dados:
+            print(f"Não foi possível encontrar o arquivo de dados bancários para {nome_empresa}")
+            return None
+            
+        # Carrega a planilha
+        df = pd.read_excel(arquivo_dados)
+        
+        # Busca a empresa pelo nome (normaliza para busca case-insensitive)
+        nome_empresa_norm = nome_empresa.strip().lower()
+        for idx, row in df.iterrows():
+            if str(row['empresa']).strip().lower() == nome_empresa_norm:
+                return {
+                    'cpf': str(row['cpf']),
+                    'banco': str(row['banco']),
+                    'agencia': str(row['agencia']),
+                    'conta': str(row['conta']),
+                    'dv': str(row['dv'])
+                }
+        
+        print(f"Empresa {nome_empresa} não encontrada no arquivo de dados bancários")
+        return None
+    except Exception as e:
+        print(f"Erro ao buscar dados bancários: {str(e)}")
+        return None
+
+def encontrar_arquivo_status(nome_empresa):
+    """
+    Encontra o arquivo de status da empresa para atualização.
+    
+    Args:
+        nome_empresa: Nome da empresa
+        
+    Returns:
+        Caminho para o arquivo de status ou None se não encontrado
+    """
+    try:
+        # Nome normalizado para busca em arquivo
+        nome_arquivo = nome_empresa.strip().upper().replace(' ', '_')
+        
+        # Procura em vários diretórios possíveis
+        possiveis_caminhos = [
+            os.path.join('db', 'status', 'save', f"{nome_arquivo}.xlsx"),
+            os.path.join('db', 'status', f"{nome_arquivo}.xlsx"),
+            os.path.join('status', 'save', f"{nome_arquivo}.xlsx"),
+            os.path.join(f"{nome_arquivo}.xlsx"),
+        ]
+        
+        for caminho in possiveis_caminhos:
+            if os.path.exists(caminho):
+                print(f"Arquivo de status encontrado: {caminho}")
+                return caminho
+                
+        print(f"Arquivo de status não encontrado para {nome_empresa}")
+        return None
+    except Exception as e:
+        print(f"Erro ao buscar arquivo de status: {str(e)}")
+        return None
+
 def main():
+    # Solicita o nome da empresa
+    empresa = input("Digite o nome da empresa: ")
+    
+    # Busca dados bancários na planilha centralizada
+    dados_bancarios_empresa = encontrar_dados_bancarios(empresa)
+    if not dados_bancarios_empresa:
+        print("ERRO: Dados bancários não encontrados! Abortando...")
+        return
+    
+    print("Dados bancários encontrados:")
+    print(f"CPF: {dados_bancarios_empresa['cpf']}")
+    print(f"Banco: {dados_bancarios_empresa['banco']}")
+    print(f"Agência: {dados_bancarios_empresa['agencia']}")
+    print(f"Conta: {dados_bancarios_empresa['conta']}")
+    print(f"DV: {dados_bancarios_empresa['dv']}")
+    
+    # Verifica se o arquivo de status já existe ou precisa ser criado
+    arquivo_status = encontrar_arquivo_status(empresa)
+    if not arquivo_status:
+        # Se não encontrou, tenta criar com base no arquivo comp.xlsx
+        arquivo_comp = 'comp.xlsx'  # Path relativo padrão
+        if not os.path.exists(arquivo_comp):
+            arquivo_comp = 'db/comp.xlsx'  # Path alternativo
+            if not os.path.exists(arquivo_comp):
+                print("⚠️ Arquivo de competências não encontrado. Procurando em outras pastas...")
+                # Tenta encontrar o arquivo em qualquer pasta de primeiro nível
+                for pasta in os.listdir():
+                    caminho_possivel = os.path.join(pasta, 'comp.xlsx')
+                    if os.path.exists(caminho_possivel):
+                        arquivo_comp = caminho_possivel
+                        print(f"✅ Arquivo de competências encontrado em: {arquivo_comp}")
+                        break
+                
+                if not os.path.exists(arquivo_comp):
+                    print("❌ Arquivo de competências não encontrado! Abortando...")
+                    return
+        
+        print(f"Usando arquivo de competências: {arquivo_comp}")
+        arquivo_status = inicializar_planilha_status(empresa, arquivo_comp)
+    
+    if not arquivo_status:
+        print("Erro ao encontrar ou criar planilha de status. Abortando processo.")
+        return
+    
+    # Carrega a planilha com os dados das competências
     df = pd.read_excel('comp.xlsx')
     
     df['COMP_STR'] = df['COMP'].astype(str).str.strip()
@@ -1210,36 +1526,39 @@ def main():
     
     colunas_codigos = [col for col in df.columns if isinstance(col, str) and len(col) == 7 and col[4:5] == "-"]
     
-    # Solicita o CPF do responsável via input
-    cpf_responsavel = '02621314201'
+    # Obtém as credenciais da planilha em vez de solicitar via input
+    cpf_responsavel = dados_bancarios_empresa['cpf'].strip().replace('.', '').replace('-', '')
+    banco = dados_bancarios_empresa['banco']
+    agencia = dados_bancarios_empresa['agencia']
+    conta = dados_bancarios_empresa['conta']
+    dv = dados_bancarios_empresa['dv']
     
     # Validação básica do CPF
-    cpf_responsavel = cpf_responsavel.strip().replace('.', '').replace('-', '')
     if len(cpf_responsavel) != 11 or not cpf_responsavel.isdigit():
         print("CPF inválido! O CPF deve conter 11 dígitos numéricos.")
         return
     
     print(f"CPF do responsável: {cpf_responsavel}")
-    
-    banco = "033"
-    agencia = "0400"
-    conta = "0300"
-    dv = "20"
 
     driver = iniciar_selenium()
     
     # URL da página inicial para retornar após cada competência
     url_inicial = "https://www3.cav.receita.fazenda.gov.br/perdcomp-web/#/documento/identificacao?reset=true"
     
+    competencias_processadas = 0
+    total_competencias = len(df)
+    
     for idx, row in df.iterrows():
         comp_str = row['COMP_STR']
-        print(f"\nPROCESSANDO COMPETÊNCIA: {comp_str}")
+        print(f"\nPROCESSANDO COMPETÊNCIA: {comp_str} ({idx+1}/{total_competencias})")
         
         # Para controlar os documentos disponíveis
         documentos_processados = []
         total_documentos = 0
         documentos_disponiveis = []
         parte_atual = 1
+        competencia_sucesso = False
+        competencia_falha = False
         
         # Garantir que estamos na página inicial ao iniciar cada competência
         driver.get(url_inicial)
@@ -1253,12 +1572,16 @@ def main():
             indentificar_documento(driver, apelido)
         except Exception as e:
             print(f"Erro ao criar documento: {e}")
+            competencia_falha = True
+            atualizar_status_competencia(arquivo_status, comp_str, sucesso=False, falha=True)
             continue
         
         # Na primeira parte, descobre quantos documentos existem no total
         analise_docs = informar_credito(driver, comp_str)
         if not analise_docs:
             print("Nenhum documento encontrado para esta competência. Pulando para próxima.")
+            competencia_falha = True
+            atualizar_status_competencia(arquivo_status, comp_str, sucesso=False, falha=True)
             # Retorna à página inicial antes de pular para próxima competência
             driver.get(url_inicial)
             continue
@@ -1267,6 +1590,8 @@ def main():
         resultado_analise = analisar_documento(analise_docs, row[colunas_codigos])
         if not resultado_analise:
             print("Erro na análise. Pulando para próxima competência.")
+            competencia_falha = True
+            atualizar_status_competencia(arquivo_status, comp_str, sucesso=False, falha=True)
             # Retorna à página inicial antes de pular para próxima competência
             driver.get(url_inicial)
             continue
@@ -1276,6 +1601,8 @@ def main():
         
         if not documentos_validos:
             print(f"Nenhum documento com códigos válidos para a competência {comp_str}. Pulando para próxima.")
+            competencia_falha = True
+            atualizar_status_competencia(arquivo_status, comp_str, sucesso=False, falha=True)
             driver.get(url_inicial)
             continue
         
@@ -1307,22 +1634,32 @@ def main():
                                 print(f"Documento {num_doc} processado e salvo na parte {parte_atual}!")
                             else:
                                 print("Falha no envio do documento. Continuando para próxima competência.")
+                                competencia_falha = True
+                                atualizar_status_competencia(arquivo_status, comp_str, sucesso=False, falha=True)
                                 driver.get(url_inicial)
                                 continue
                         else:
                             print("Falha no preenchimento dos dados bancários. Continuando para próxima competência.")
+                            competencia_falha = True
+                            atualizar_status_competencia(arquivo_status, comp_str, sucesso=False, falha=True)
                             driver.get(url_inicial)
                             continue
                     else:
                         print("Falha na verificação de valores. Continuando para próxima competência.")
+                        competencia_falha = True
+                        atualizar_status_competencia(arquivo_status, comp_str, sucesso=False, falha=True)
                         driver.get(url_inicial)
                         continue
                 else:
                     print("Falha no preenchimento. Continuando para próxima competência.")
+                    competencia_falha = True
+                    atualizar_status_competencia(arquivo_status, comp_str, sucesso=False, falha=True)
                     driver.get(url_inicial)
                     continue
             else:
                 print("Falha na seleção. Continuando para próxima competência.")
+                competencia_falha = True
+                atualizar_status_competencia(arquivo_status, comp_str, sucesso=False, falha=True)
                 driver.get(url_inicial)
                 continue
         
@@ -1332,13 +1669,19 @@ def main():
         # Se não houver mais documentos, prossegue para a próxima competência
         if not documentos_restantes:
             print(f"Todos os {total_documentos} documentos válidos da competência {comp_str} foram processados!")
+            competencia_sucesso = True
+            atualizar_status_competencia(arquivo_status, comp_str, sucesso=True, falha=False)
             # Retorna à página inicial antes de pular para próxima competência
             driver.get(url_inicial)
+            competencias_processadas += 1
             continue
             
         # Calcula quantas partes adicionais são necessárias
         partes_restantes = len(documentos_restantes)
         print(f"Serão necessárias mais {partes_restantes} partes para processar todos os documentos válidos desta competência.")
+        
+        # Flag para controlar se todos os documentos restantes foram processados com sucesso
+        todos_restantes_processados = True
         
         # Processa as demais partes necessárias
         for doc_idx, doc_num in enumerate(documentos_restantes):
@@ -1355,12 +1698,14 @@ def main():
                 indentificar_documento(driver, apelido)
             except Exception as e:
                 print(f"Erro ao criar documento parte {parte_atual}: {e}")
+                todos_restantes_processados = False
                 continue
             
             # Para as partes subsequentes, não precisamos analisar novamente
             analise_docs = informar_credito(driver, comp_str)
             if not analise_docs:
                 print(f"Erro ao informar crédito na parte {parte_atual}. Tentando próxima parte.")
+                todos_restantes_processados = False
                 continue
                 
             # Confirma a análise para garantir que ainda temos acesso aos documentos
@@ -1368,6 +1713,7 @@ def main():
             resultado_analise_parcial = analisar_documento(analise_docs)
             if not resultado_analise_parcial:
                 print(f"Erro na análise da parte {parte_atual}. Tentando próxima parte.")
+                todos_restantes_processados = False
                 continue
             
             # Seleciona o documento específico para esta parte
@@ -1375,6 +1721,7 @@ def main():
             
             if not codigos_doc:
                 print(f"Documento {doc_num} não encontrado na parte {parte_atual}. Tentando próximo documento.")
+                todos_restantes_processados = False
                 continue
             
             if selecionar_documento(driver, doc_num):
@@ -1392,26 +1739,48 @@ def main():
                                 print(f"Documento {doc_num} processado e salvo na parte {parte_atual}!")
                             else:
                                 print(f"Falha no envio do documento na parte {parte_atual}. Tentando próxima parte.")
+                                todos_restantes_processados = False
                                 continue
                         else:
                             print(f"Falha no preenchimento dos dados bancários na parte {parte_atual}. Tentando próxima parte.")
+                            todos_restantes_processados = False
                             continue
                     else:
                         print(f"Falha na verificação de valores da parte {parte_atual}. Tentando próxima parte.")
+                        todos_restantes_processados = False
                         continue
                 else:
                     print(f"Falha no preenchimento da parte {parte_atual}. Tentando próxima parte.")
+                    todos_restantes_processados = False
                     continue
             else:
                 print(f"Falha na seleção do documento na parte {parte_atual}. Tentando próxima parte.")
+                todos_restantes_processados = False
                 continue
         
-        print(f"Processamento da competência {comp_str} concluído! {len(documentos_processados)} de {total_documentos} documentos válidos processados.")
+        # Atualiza o status da competência com base no processamento de todos os documentos
+        documentos_finalizados = len(documentos_processados)
+        if documentos_finalizados == total_documentos and todos_restantes_processados:
+            competencia_sucesso = True
+            print(f"Competência {comp_str} processada com SUCESSO! Todos os {total_documentos} documentos foram processados.")
+        else:
+            competencia_falha = True
+            print(f"Competência {comp_str} processada com FALHAS! {documentos_finalizados} de {total_documentos} documentos processados.")
+        
+        # Atualiza a planilha de status
+        atualizar_status_competencia(arquivo_status, comp_str, sucesso=competencia_sucesso, falha=competencia_falha)
+        
+        if competencia_sucesso:
+            competencias_processadas += 1
         
         # Após finalizar todas as partes da competência atual, retorna à página inicial para iniciar a próxima
         print(f"\nRetornando à página inicial para próxima competência...")
         driver.get(url_inicial)
         time.sleep(2)  # Espera para garantir o carregamento completo da página
+    
+    # Gera o relatório final do processamento
+    gerar_relatorio_final(arquivo_status)
+    print(f"\nProcessamento finalizado! {competencias_processadas} de {total_competencias} competências processadas com sucesso.")
         
 if __name__ == "__main__":
     main()

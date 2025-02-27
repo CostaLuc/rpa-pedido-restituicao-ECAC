@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Selecionar Grupo - Sistema RPA</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar / Menu Lateral -->
+        <div class="sidebar">
+            <div class="logo">
+                <h2>RPA Pedido de Restituição</h2>
+            </div>
+            <div class="menu">
+                <ul>
+                    <li>
+                        <a href="{{ url_for('dashboard') }}">
+                            <i class="fas fa-home"></i>
+                            <span>Status</span>
+                        </a>
+                    </li>
+                    <li class="active">
+                        <a href="{{ url_for('select_group') }}">
+                            <i class="fas fa-building"></i>
+                            <span>Selecionar Grupo</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#" onclick="openSelectGroupModal(); return false;">
+                            <i class="fas fa-robot"></i>
+                            <span>Iniciar RPA</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#">
+                            <i class="fas fa-history"></i>
+                            <span>Histórico</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#">
+                            <i class="fas fa-cog"></i>
+                            <span>Configurações</span>
+                        </a>
+                    </li>
+                    <li class="logout">
+                        <a href="{{ url_for('logout') }}">
+                            <i class="fas fa-sign-out-alt"></i>
+                            <span>Sair</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Conteúdo principal -->
+        <div class="main-content">
+            <header>
+                <div class="header-content">
+                    <div class="header-left">
+                        <h2>Selecionar Grupo</h2>
+                    </div>
+                    <div class="header-right">
+                        <div class="user-info">
+                            <span>Olá, {{ username }}</span>
+                            <div class="user-image">
+                                <i class="fas fa-user"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Área de mensagens -->
+            {% if messages %}
+                {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">
+                    {{ message }}
+                    <span class="close-btn">&times;</span>
+                </div>
+                {% endfor %}
+            {% endif %}
+
+            <!-- Conteúdo Principal -->
+            <div class="content">
+                <div class="group-selection-panel">
+                    <h2>Selecione um Grupo de Empresas</h2>
+                    <p>Para prosseguir, você precisa selecionar um grupo de empresas ou uma empresa específica:</p>
+                    
+                    <div class="selection-options">
+                        <div class="selection-tabs">
+                            <div class="tab active" data-tab="groups">Grupos</div>
+                            <div class="tab" data-tab="companies">Empresas</div>
+                        </div>
+                        
+                        <div class="tab-content" id="groups-content">
+                            <div class="group-cards">
+                                {% for group in available_groups %}
+                                <div class="group-card-container">
+                                    <a href="{{ url_for('dashboard', group=group) }}" class="group-card">
+                                        <div class="group-icon">
+                                            <i class="fas fa-building"></i>
+                                        </div>
+                                        <h3>{{ group|upper }}</h3>
+                                        <p>{{ group_counts.get(group, 0) }} empresas</p>
+                                        <div class="card-button">Ver Status</div>
+                                    </a>
+                                    <a href="#" onclick="loadCompanies('{{ group }}'); return false;" class="select-company-button">
+                                        <i class="fas fa-search"></i> Ver Empresas
+                                    </a>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        
+                        <div class="tab-content hidden" id="companies-content">
+                            <div class="group-select-dropdown">
+                                <label for="groupSelector">Selecione um grupo:</label>
+                                <select id="groupSelector" onchange="loadCompaniesForDropdown(this.value)">
+                                    <option value="">-- Selecionar Grupo --</option>
+                                    {% for group in available_groups %}
+                                    <option value="{{ group }}">{{ group|upper }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <div id="companyListContainer" class="company-list-container">
+                                <p class="select-prompt">Selecione um grupo para ver as empresas disponíveis</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para seleção de empresas -->
+    <div id="companyModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Selecionar Empresa</h2>
+                <span class="modal-close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="search-bar modal-search">
+                    <input type="text" id="companyModalSearch" placeholder="Pesquisar empresa..." onkeyup="filterModalCompanies()">
+                    <i class="fas fa-search"></i>
+                </div>
+
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <span>Selecione <strong>uma</strong> empresa para iniciar o processo.</span>
+                </div>
+
+                <div id="companyList" class="company-list">
+                    <div class="loading">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <span>Carregando empresas...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Script para fechar alertas
+        document.addEventListener('DOMContentLoaded', function() {
+            const closeButtons = document.querySelectorAll('.close-btn');
+            closeButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    this.parentElement.style.display = 'none';
+                });
+            });
+
+            // Modal setup
+            const modal = document.getElementById('companyModal');
+            const modalClose = document.querySelector('.modal-close');
+            
+            modalClose.addEventListener('click', function() {
+                modal.style.display = 'none';
+            });
+            
+            window.addEventListener('click', function(event) {
+                if (event.target == modal) {
+                    modal.style.display = 'none';
+                }
+            });
+
+            // Tab switching
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const tabName = this.getAttribute('data-tab');
+                    
+                    // Update active tab
+                    tabs.forEach(t => t.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    // Show correct content
+                    document.querySelectorAll('.tab-content').forEach(content => {
+                        content.classList.add('hidden');
+                    });
+                    document.getElementById(tabName + '-content').classList.remove('hidden');
+                });
+            });
+        });
+        
+        // Função para abrir o modal de seleção de grupo/empresa
+        function openSelectGroupModal() {
+            const modal = document.getElementById('companyModal');
+            modal.style.display = 'flex';
+            
+            // Carregar empresas do primeiro grupo disponível
+            const groupSelector = document.getElementById('groupSelector');
+            if (groupSelector.options.length > 1) {
+                loadCompanies(groupSelector.options[1].value);
+            }
+        }
+
+        // Função para carregar empresas via AJAX para o modal
+        function loadCompanies(group) {
+            const modal = document.getElementById('companyModal');
+            const companyList = document.getElementById('companyList');
+            
+            modal.style.display = 'flex';
+            companyList.innerHTML = `
+                <div class="loading">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <span>Carregando empresas...</span>
+                </div>`;
+            
+            fetch('/get_companies/' + group)
+                .then(response => response.json())
+                .then(companies => {
+                    if (companies.length === 0) {
+                        companyList.innerHTML = `
+                            <div class="no-companies">
+                                <i class="fas fa-exclamation-circle"></i>
+                                <p>Nenhuma empresa encontrada para este grupo.</p>
+                            </div>`;
+                        return;
+                    }
+                    
+                    let html = '<div class="company-grid">';
+                    companies.forEach(company => {
+                        html += `
+                            <div class="company-card" data-name="${company.name}" data-cnpj="${company.cnpj}">
+                                <div class="company-info">
+                                    <h3>${company.name}</h3>
+                                    <p>CNPJ: ${company.cnpj}</p>
+                                    <p>Certificado: ${company.certificate}</p>
+                                </div>
+                                <a href="/start_process?group=${group}&company_id=${company.id}" class="company-select-btn">
+                                    <i class="fas fa-play"></i> Selecionar
+                                </a>
+                            </div>`;
+                    });
+                    html += '</div>';
+                    companyList.innerHTML = html;
+                })
+                .catch(error => {
+                    console.error('Erro ao carregar empresas:', error);
+                    companyList.innerHTML = `
+                        <div class="error-message">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <p>Ocorreu um erro ao carregar as empresas.</p>
+                        </div>`;
+                });
+        }
+        
+        // Função para carregar empresas para a lista do dropdown
+        function loadCompaniesForDropdown(group) {
+            const companyListContainer = document.getElementById('companyListContainer');
+            
+            if (!group) {
+                companyListContainer.innerHTML = `<p class="select-prompt">Selecione um grupo para ver as empresas disponíveis</p>`;
+                return;
+            }
+            
+            companyListContainer.innerHTML = `
+                <div class="loading">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <span>Carregando empresas...</span>
+                </div>`;
+            
+            fetch('/get_companies/' + group)
+                .then(response => response.json())
+                .then(companies => {
+                    if (companies.length === 0) {
+                        companyListContainer.innerHTML = `
+                            <div class="no-companies">
+                                <i class="fas fa-exclamation-circle"></i>
+                                <p>Nenhuma empresa encontrada para este grupo.</p>
+                            </div>`;
+                        return;
+                    }
+                    
+                    let html = '<div class="company-list-grid">';
+                    companies.forEach(company => {
+                        html += `
+                            <div class="company-list-item">
+                                <div class="company-list-info">
+                                    <h3>${company.name}</h3>
+                                    <p>CNPJ: ${company.cnpj}</p>
+                                </div>
+                                <div class="company-list-actions">
+                                    <a href="/dashboard?group=${group}&company_id=${company.id}" class="company-view-btn">
+                                        <i class="fas fa-eye"></i> Ver Status
+                                    </a>
+                                    <a href="/start_process?group=${group}&company_id=${company.id}" class="company-start-btn">
+                                        <i class="fas fa-play"></i> Iniciar
+                                    </a>
+                                </div>
+                            </div>`;
+                    });
+                    html += '</div>';
+                    companyListContainer.innerHTML = html;
+                })
+                .catch(error => {
+                    console.error('Erro ao carregar empresas:', error);
+                    companyListContainer.innerHTML = `
+                        <div class="error-message">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <p>Ocorreu um erro ao carregar as empresas.</p>
+                        </div>`;
+                });
+        }
+        
+        // Função para filtrar empresas no modal
+        function filterModalCompanies() {
+            const input = document.getElementById('companyModalSearch');
+            const filter = input.value.toUpperCase();
+            const companyCards = document.querySelectorAll('.company-card');
+            
+            companyCards.forEach(card => {
+                const companyName = card.getAttribute('data-name');
+                const companyCnpj = card.getAttribute('data-cnpj');
+                
+                if (companyName.toUpperCase().indexOf(filter) > -1 || 
+                    companyCnpj.toUpperCase().indexOf(filter) > -1) {
+                    card.style.display = "";
+                } else {
+                    card.style.display = "none";
+                }
+            });
+        }
+    </script>
+</body>
+</html>
