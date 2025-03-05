@@ -7,6 +7,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.3/font/bootstrap-icons.css">
     <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/rpa.css">
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
@@ -55,7 +56,7 @@
                 <h5>CNPJ: {{ company.get('CNPJ', company.get('cnpj', 'N/A')) }}</h5>
             </div>
             <div class="card-body">
-                <form action="{{ url_for('save_rpa_data') }}" method="post" enctype="multipart/form-data">
+                <form action="{{ url_for('save_rpa_data') }}" method="post" enctype="multipart/form-data" id="rpaForm">
                     <input type="hidden" name="group" value="{{ group }}">
                     <input type="hidden" name="company_id" value="{{ company_id }}">
                     
@@ -64,8 +65,11 @@
                         <div class="row">
                             <div class="col-md-6">
                                 <label for="cpf" class="form-label">CPF do Contribuinte:</label>
-                                <input type="text" class="form-control" id="cpf" name="cpf" 
-                                       placeholder="000.000.000-00" value="{{ existing_data.get('cpf', '') }}" required>
+                                <div class="input-group">
+                                    <input type="text" class="form-control locked-field" id="cpf" name="cpf" 
+                                           placeholder="000.000.000-00" value="{{ existing_data.get('cpf', '') }}" required readonly>
+                                    <span class="input-group-text lock-icon"><i class="bi bi-lock-fill"></i></span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -75,25 +79,44 @@
                         <div class="row">
                             <div class="col-md-3">
                                 <label for="banco" class="form-label">Banco:</label>
-                                <input type="text" class="form-control" id="banco" name="banco" 
-                                       placeholder="Ex: 001" value="{{ existing_data.get('banco', '') }}" required>
+                                <div class="input-group">
+                                    <input type="text" class="form-control locked-field" id="banco" name="banco" 
+                                           placeholder="Ex: 001" value="{{ existing_data.get('banco', '') }}" required readonly>
+                                    <span class="input-group-text lock-icon"><i class="bi bi-lock-fill"></i></span>
+                                </div>
                             </div>
                             <div class="col-md-3">
                                 <label for="agencia" class="form-label">Agência:</label>
-                                <input type="text" class="form-control" id="agencia" name="agencia" 
-                                       placeholder="Sem dígito" value="{{ existing_data.get('agencia', '') }}" required>
+                                <div class="input-group">
+                                    <input type="text" class="form-control locked-field" id="agencia" name="agencia" 
+                                           placeholder="Sem dígito" value="{{ existing_data.get('agencia', '') }}" required readonly>
+                                    <span class="input-group-text lock-icon"><i class="bi bi-lock-fill"></i></span>
+                                </div>
                             </div>
                             <div class="col-md-3">
                                 <label for="conta" class="form-label">Conta:</label>
-                                <input type="text" class="form-control" id="conta" name="conta" 
-                                       placeholder="Sem dígito" value="{{ existing_data.get('conta', '') }}" required>
+                                <div class="input-group">
+                                    <input type="text" class="form-control locked-field" id="conta" name="conta" 
+                                           placeholder="Sem dígito" value="{{ existing_data.get('conta', '') }}" required readonly>
+                                    <span class="input-group-text lock-icon"><i class="bi bi-lock-fill"></i></span>
+                                </div>
                             </div>
                             <div class="col-md-3">
                                 <label for="dv" class="form-label">Dígito Verificador:</label>
-                                <input type="text" class="form-control" id="dv" name="dv" 
-                                       placeholder="DV" value="{{ existing_data.get('dv', '') }}" required>
+                                <div class="input-group">
+                                    <input type="text" class="form-control locked-field" id="dv" name="dv" 
+                                           placeholder="DV" value="{{ existing_data.get('dv', '') }}" required readonly>
+                                    <span class="input-group-text lock-icon"><i class="bi bi-lock-fill"></i></span>
+                                </div>
                             </div>
                         </div>
+                        <!-- Adicionar mensagem informativa sobre dados bancários existentes -->
+                        {% if existing_data.get('banco') or existing_data.get('agencia') or existing_data.get('conta') %}
+                        <div class="alert alert-info mt-2">
+                            <i class="bi bi-info-circle"></i> 
+                            Dados bancários já cadastrados. Para editar, clique no botão "Editar Dados".
+                        </div>
+                        {% endif %}
                     </div>
                     
                     <div class="mb-3">
@@ -118,14 +141,32 @@
                         </div>
                     </div>
 
-                    <div class="d-flex justify-content-between">
+                    <div class="d-flex justify-content-between align-items-center">
                         <a href="{{ url_for('dashboard', group=group, company_id=company_id) }}" class="btn btn-secondary">
                             <i class="bi bi-arrow-left"></i> Voltar
                         </a>
-                        <button type="submit" class="btn btn-success">
-                            <i class="bi bi-play-fill"></i> Iniciar Processo RPA
-                        </button>
+                        <div>
+                            <button type="button" id="editButton" class="btn btn-warning me-2">
+                                <i class="bi bi-pencil"></i> Editar Dados
+                            </button>
+                            <button type="submit" class="btn btn-success" id="submitButton">
+                                <i class="bi bi-play-fill"></i> Iniciar Processo RPA
+                            </button>
+                        </div>
                     </div>
+                </form>
+
+                <form action="{{ url_for('execute_rpa_frontend') }}" method="post" enctype="multipart/form-data" class="mt-3">
+                    <input type="hidden" name="group" value="{{ group }}">
+                    <input type="hidden" name="company_id" value="{{ company_id }}">
+                    <input type="hidden" name="cpf" value="{{ existing_data.get('cpf', '') }}">
+                    <input type="hidden" name="banco" value="{{ existing_data.get('banco', '') }}">
+                    <input type="hidden" name="agencia" value="{{ existing_data.get('agencia', '') }}">
+                    <input type="hidden" name="conta" value="{{ existing_data.get('conta', '') }}">
+                    <input type="hidden" name="dv" value="{{ existing_data.get('dv', '') }}">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-play-fill"></i> Iniciar Processo RPA (Frontend)
+                    </button>
                 </form>
             </div>
         </div>
@@ -147,6 +188,61 @@
             }
             
             e.target.value = value;
+        });
+
+        // Controle de edição de campos
+        document.getElementById('editButton').addEventListener('click', function() {
+            const fields = document.querySelectorAll('.locked-field');
+            const lockIcons = document.querySelectorAll('.lock-icon i');
+            const editButton = document.getElementById('editButton');
+            
+            if (fields[0].readOnly) {
+                // Modo de edição
+                fields.forEach(field => {
+                    field.readOnly = false;
+                    field.classList.remove('locked-field');
+                    field.classList.add('unlocked-field');
+                });
+                
+                lockIcons.forEach(icon => {
+                    icon.classList.remove('bi-lock-fill');
+                    icon.classList.add('bi-unlock-fill');
+                });
+                
+                editButton.innerHTML = '<i class="bi bi-check-lg"></i> Concluir Edição';
+                editButton.classList.remove('btn-warning');
+                editButton.classList.add('btn-success');
+            } else {
+                // Modo de visualização
+                fields.forEach(field => {
+                    field.readOnly = true;
+                    field.classList.remove('unlocked-field');
+                    field.classList.add('locked-field');
+                });
+                
+                lockIcons.forEach(icon => {
+                    icon.classList.remove('bi-unlock-fill');
+                    icon.classList.add('bi-lock-fill');
+                });
+                
+                editButton.innerHTML = '<i class="bi bi-pencil"></i> Editar Dados';
+                editButton.classList.remove('btn-success');
+                editButton.classList.add('btn-warning');
+            }
+        });
+
+        // Sincronização dos dados bancários com o segundo formulário
+        document.getElementById('rpaForm').addEventListener('submit', function() {
+            // Atualiza os campos ocultos do segundo formulário com os valores atuais
+            const bancoDados = document.getElementById('banco').value;
+            const agenciaDados = document.getElementById('agencia').value;
+            const contaDados = document.getElementById('conta').value;
+            const dvDados = document.getElementById('dv').value;
+            
+            document.querySelectorAll('form')[1].querySelector('input[name="banco"]').value = bancoDados;
+            document.querySelectorAll('form')[1].querySelector('input[name="agencia"]').value = agenciaDados;
+            document.querySelectorAll('form')[1].querySelector('input[name="conta"]').value = contaDados;
+            document.querySelectorAll('form')[1].querySelector('input[name="dv"]').value = dvDados;
         });
     </script>
 </body>

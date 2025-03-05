@@ -916,6 +916,10 @@ header {
 /* Tabela de histórico */
 .history-table-container {
     overflow-x: auto;
+    overflow-y: auto;
+    border: 1px solid #eee;
+    border-radius: 5px;
+    margin-bottom: 15px;
 }
 
 .history-table {
@@ -930,6 +934,10 @@ header {
     text-align: left;
     font-weight: 500;
     border-bottom: 1px solid #eee;
+    position: sticky; /* Mantém o cabeçalho fixo durante a rolagem */
+    top: 0;
+    z-index: 10;
+    box-shadow: 0 1px 0 #eee; /* Adiciona sombra sutil ao cabeçalho */
 }
 
 .history-table td {
@@ -937,8 +945,10 @@ header {
     border-bottom: 1px solid #eee;
 }
 
+/* Estilos para os diferentes status */
 .status-concluído {
-    color: var(--success-color);
+    color: var(--success-color) !important;
+    font-weight: 500;
 }
 
 .status-pendente {
@@ -946,6 +956,53 @@ header {
 }
 
 .status-cancelado {
+    color: var(--danger-color);
+}
+
+.status-falha {
+    color: var(--danger-color);
+    font-weight: 500;
+}
+
+.status-erro {
+    color: var(--danger-color);
+}
+
+/* Adicionar classes específicas para o histórico de processos */
+.status-concluído,
+.status-success,
+td.concluído,
+td[data-status="concluído"],
+.history-table td:contains("concluído") {
+    color: var(--success-color) !important;
+    font-weight: 500;
+}
+
+/* Estilo para a coluna de observação */
+td.observation {
+    color: #666;
+    font-style: italic;
+    max-width: 200px; /* Limita o tamanho da coluna */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+td.observation:hover {
+    white-space: normal; /* Mostra o texto completo ao passar o mouse */
+    overflow: visible;
+    background-color: #f9f9f9;
+    position: relative;
+    z-index: 5;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+/* Adicionando estilo para status de falha */
+.status-falha {
+    color: var(--danger-color);
+}
+
+.status-erro {
     color: var(--danger-color);
 }
 
@@ -1023,4 +1080,64 @@ header {
 
 .action-button.primary:hover {
     background-color: var(--secondary-color);
+}
+
+/* Paginação para histórico */
+.history-pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 15px;
+    gap: 5px;
+}
+
+.page-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    background-color: #f1f1f1;
+    color: var(--text-color);
+    border-radius: 4px;
+    text-decoration: none;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    border: none;
+}
+
+.page-button:hover {
+    background-color: #e0e0e0;
+}
+
+.page-button.active {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.page-button.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.page-info {
+    font-size: 14px;
+    color: #666;
+    margin: 0 10px;
+}
+
+.page-size-selector {
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+    color: #666;
+    margin-left: 20px;
+}
+
+.page-size-selector select {
+    margin-left: 5px;
+    padding: 3px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
 }

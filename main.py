@@ -9,6 +9,7 @@ import shutil
 import datetime
 import subprocess
 import sys
+import traceback  # Adicione esta linha para importar o módulo traceback
 
 # Importar funções de login
 from login import check_credentials, create_default_user
@@ -194,23 +195,18 @@ def get_company_stats(group, company_id):
     """Obtém estatísticas específicas de uma empresa a partir do arquivo de status."""
     company = get_company_by_id(group, company_id)
     if not company:
-        return {
-            'processos_totais': 0,
-            'processos_concluidos': 0,
-            'processos_pendentes': 0,
-            'processos_falha': 0,
-            'ultimo_processamento': 'Nunca',
-            'status': 'Não iniciado',
-            'historico': []
-        }
+        return None
     
     status_path = get_company_status_path(group, company)
+    print(f"Verificando arquivo de status em: {status_path}")
+    
     if not os.path.exists(status_path):
+        print(f"Arquivo de status não encontrado: {status_path}")
         return {
             'processos_totais': 0,
             'processos_concluidos': 0,
             'processos_pendentes': 0,
-            'processos_falha': 0,
+            'processos_falhas': 0,
             'ultimo_processamento': 'Nunca',
             'status': 'Não iniciado',
             'historico': []
@@ -218,81 +214,144 @@ def get_company_stats(group, company_id):
     
     try:
         # Lê dados do arquivo de status
+        print(f"Lendo arquivo de status: {status_path}")
         status_df = pd.read_excel(status_path)
+        print(f"Colunas encontradas: {status_df.columns.tolist()}")
+        
+        # Contadores para processos
+        total_processos = len(status_df)
+        processos_concluidos = 0
+        processos_falhas = 0
+        processos_pendentes = 0
         
         # Verifica se temos o formato novo de status com as colunas Sucesso, falha, pendente
         if 'Sucesso' in status_df.columns and 'falha' in status_df.columns and 'pendente' in status_df.columns:
-            # Contagem de processos com base nas colunas específicas
-            total_processos = len(status_df)
-            processos_concluidos = status_df['Sucesso'].sum()
-            processos_falha = status_df['falha'].sum()
-            processos_pendentes = status_df['pendente'].sum()
+            print("Usando formato novo de colunas (Sucesso, falha, pendente)")
+            # Sucesso apenas se for explicitamente marcado como Sucesso=True
+            processos_concluidos = int(status_df['Sucesso'].sum())
+            
+            # Falha se estiver marcado como falha=True
+            processos_falhas = int(status_df['falha'].sum())
+            
+            # Pendente se estiver explicitamente marcado como pendente=True
+            processos_pendentes = int(status_df['pendente'].sum())
+            
+        elif 'status' in status_df.columns:
+            print("Usando formato baseado na coluna 'status'")
+            status_df['status_lower'] = status_df['status'].astype(str).str.lower()
+            
+            # Só considerar sucesso se for explicitamente "concluído" ou variações
+            processos_concluidos = len(status_df[status_df['status_lower'].isin(['concluído', 'concluído com sucesso', 'processado com sucesso'])])
+            
+            # Considerar falha apenas com status explícito de falha
+            falha_keywords = ['falha', 'erro', 'divergência', 'divergencia', 'rejeitado', 'recusado']
+            processos_falhas = len(status_df[status_df['status_lower'].str.contains('|'.join(falha_keywords), na=False)])
+            
+            # Pendentes são os que têm status "pendente" ou "aguardando"
+            processos_pendentes = len(status_df[status_df['status_lower'].isin(['pendente', 'aguardando'])])
+            
+            # Se a soma não bate com o total, ajusta os pendentes
+            if (processos_concluidos + processos_falhas + processos_pendentes) != total_processos:
+                # Os registros que não são sucessos ou falhas explícitas são pendentes
+                processos_pendentes = total_processos - processos_concluidos - processos_falhas
         else:
-            # Contagem baseada na coluna 'status' (formato antigo)
-            total_processos = len(status_df)
-            processos_concluidos = len(status_df[status_df['status'] == 'Concluído'])
-            processos_falha = len(status_df[status_df['status'] == 'Falha'])
-            processos_pendentes = total_processos - processos_concluidos - processos_falha
+            # Se não temos informação de status, consideramos tudo como pendente
+            processos_pendentes = total_processos
         
         # Data do último processamento
+        ultimo_processamento = 'Desconhecido'
         if 'data' in status_df.columns and not status_df.empty:
-            ultimo_processamento = status_df['data'].max()
-            if isinstance(ultimo_processamento, pd.Timestamp):
-                ultimo_processamento = ultimo_processamento.strftime('%d/%m/%Y')
-        else:
-            ultimo_processamento = 'Desconhecido'
+            try:
+                # Converte coluna de data para datetime, ignorando erros
+                status_df['data'] = pd.to_datetime(status_df['data'], errors='coerce')
+                
+                # Filtra apenas as datas válidas e obtém a mais recente
+                datas_validas = status_df['data'].dropna()
+                if not datas_validas.empty:
+                    ultima_data = datas_validas.max()
+                    ultimo_processamento = ultima_data.strftime('%d/%m/%Y %H:%M:%S')
+                    print(f"Último processamento: {ultimo_processamento}")
+            except Exception as e:
+                print(f"Erro ao converter datas: {str(e)}")
+                ultimo_processamento = 'Erro na data'
         
         # Status geral
         if processos_pendentes > 0:
             status_geral = 'Em andamento'
-        elif processos_falha > 0 and processos_concluidos == 0:
+        elif processos_falhas > 0 and processos_concluidos == 0:
             status_geral = 'Falha'
         elif processos_concluidos > 0:
             status_geral = 'Concluído'
         else:
             status_geral = 'Não iniciado'
         
-        # Histórico de ações (últimas 10)
+        # Histórico de ações (APENAS de eventos especiais)
         historico = []
-        if not status_df.empty and 'data' in status_df.columns:
-            for _, row in status_df.sort_values('data', ascending=False).head(10).iterrows():
-                data = row['data']
-                if isinstance(data, pd.Timestamp):
-                    data = data.strftime('%d/%m/%Y')
-                
-                # Determinar status com base nas novas colunas
-                if 'Sucesso' in row and row['Sucesso']:
-                    status = 'Concluído'
-                elif 'falha' in row and row['falha']:
-                    status = 'Falha'
-                elif 'pendente' in row and row['pendente']:
-                    status = 'Pendente'
-                else:
-                    status = row.get('status', 'Desconhecido')
-                
-                historico.append({
-                    'data': data,
-                    'acao': row.get('acao', 'Restituição'),
-                    'status': status,
-                    'competencia': row.get('competencia', '')
-                })
+        
+        # Buscamos APENAS o arquivo de eventos
+        company_name = get_company_name(company)
+        nome_empresa_normalizado = company_name.strip().upper().replace(' ', '_')
+        
+        eventos_paths = [
+            os.path.join(os.path.dirname(status_path), 'eventos.xlsx'),
+            os.path.join(os.path.dirname(status_path), nome_empresa_normalizado, 'eventos.xlsx'),
+            os.path.join('db', 'status', group, nome_empresa_normalizado, 'eventos.xlsx'),
+            os.path.join('db', 'status', 'save', f"{nome_empresa_normalizado}_eventos.xlsx")
+        ]
+        
+        for eventos_path in eventos_paths:
+            if os.path.exists(eventos_path):
+                try:
+                    eventos_df = pd.read_excel(eventos_path)
+                    print(f"Arquivo de eventos encontrado: {eventos_path}")
+                    print(f"Colunas de eventos: {eventos_df.columns.tolist()}")
+                    
+                    # Converte data para datetime se existir
+                    if 'data' in eventos_df.columns:
+                        eventos_df['data'] = pd.to_datetime(eventos_df['data'], errors='coerce')
+                    
+                    # Ordena os eventos do mais recente para o mais antigo
+                    eventos_df = eventos_df.sort_values(by='data', ascending=False) if 'data' in eventos_df.columns else eventos_df
+                    
+                    # Adiciona eventos ao histórico (limitando aos 50 mais recentes)
+                    for _, row in eventos_df.head(50).iterrows():
+                        evento = {
+                            'data': row.get('data', pd.Timestamp.now()).strftime('%d/%m/%Y %H:%M:%S') if isinstance(row.get('data'), pd.Timestamp) else str(row.get('data', '')),
+                            'acao': row.get('acao', 'Evento'),
+                            'status': row.get('status', 'Info'),
+                            'competencia': row.get('competencia', ''),
+                            'observacao': row.get('observacao', '')
+                        }
+                        historico.append(evento)
+                    
+                    # Se encontrou um arquivo de eventos válido, não precisa procurar nos outros
+                    break
+                except Exception as e:
+                    print(f"Erro ao processar eventos de {eventos_path}: {str(e)}")
+        
+        # Ordenamos o histórico final por data, mais recente primeiro
+        historico.sort(key=lambda x: x['data'], reverse=True)
+        
+        # Debug para entender os valores finais
+        print(f"Estatísticas finais - Total: {total_processos}, Concluídos: {processos_concluidos}, Falhas: {processos_falhas}, Pendentes: {processos_pendentes}")
         
         return {
             'processos_totais': total_processos,
             'processos_concluidos': processos_concluidos,
             'processos_pendentes': processos_pendentes,
-            'processos_falha': processos_falha,
+            'processos_falhas': processos_falhas,
             'ultimo_processamento': ultimo_processamento,
             'status': status_geral,
             'historico': historico
         }
     except Exception as e:
         print(f"Erro ao ler arquivo de status: {str(e)}")
+        traceback.print_exc()
         return {
             'processos_totais': 0,
             'processos_concluidos': 0,
             'processos_pendentes': 0,
-            'processos_falha': 0,
+            'processos_falhas': 0,
             'ultimo_processamento': 'Erro',
             'status': 'Erro ao ler status',
             'historico': []
@@ -838,6 +897,65 @@ def save_rpa_data():
         flash(f'Erro ao iniciar processo: {str(e)}', 'error')
         return redirect(url_for('rpa_page', group=group, company_id=company_id))
 
+    # Registra evento de atualização de dados
+    try:
+        nome_empresa_normalizado = company_name.strip().upper().replace(' ', '_')
+        eventos_dir = os.path.join('db', 'status', group, nome_empresa_normalizado)
+        if not os.path.exists(eventos_dir):
+            os.makedirs(eventos_dir, exist_ok=True)
+            
+        eventos_path = os.path.join(eventos_dir, 'eventos.xlsx')
+        
+        evento = {
+            'data': [datetime.datetime.now()],
+            'acao': ['ATUALIZAÇÃO DE DADOS'],
+            'status': ['SUCESSO'],
+            'competencia': ['Todas'],
+            'observacao': [f"Dados bancários atualizados: CPF {cpf}, Banco {banco}, Agência {agencia}, Conta {conta}, DV {dv}"]
+        }
+        
+        df_evento = pd.DataFrame(evento)
+        
+        # Se o arquivo já existe, adiciona o novo evento
+        if os.path.exists(eventos_path):
+            try:
+                df_existente = pd.read_excel(eventos_path)
+                df_evento = pd.concat([df_evento, df_existente], ignore_index=True)
+                # Limita a 100 eventos
+                if len(df_evento) > 100:
+                    df_evento = df_evento.head(100)
+            except Exception as e:
+                print(f"Erro ao ler eventos existentes: {str(e)}")
+                # Continua com apenas o novo evento
+        
+        # Salva o evento
+        df_evento.to_excel(eventos_path, index=False)
+        print(f"Evento de atualização de dados registrado em {eventos_path}")
+        
+        # Tenta também registrar na pasta "save" para redundância
+        try:
+            diretorio_save = os.path.join('db', 'status', 'save')
+            if not os.path.exists(diretorio_save):
+                os.makedirs(diretorio_save)
+                
+            eventos_save_path = os.path.join(diretorio_save, f"{nome_empresa_normalizado}_eventos.xlsx")
+            
+            # Se já existe o arquivo, adiciona o novo evento
+            if os.path.exists(eventos_save_path):
+                save_df = pd.read_excel(eventos_save_path)
+                save_df = pd.concat([df_evento, save_df], ignore_index=True)
+                if len(save_df) > 100:
+                    save_df = save_df.head(100)
+            else:
+                save_df = df_evento
+                
+            save_df.to_excel(eventos_save_path, index=False)
+        except Exception as e:
+            print(f"Aviso: Não foi possível registrar evento na pasta save: {str(e)}")
+        
+    except Exception as e:
+        print(f"Erro ao registrar evento: {str(e)}")
+
 def start_rpa_process(company_name, comp_filepath, cpf, banco, agencia, conta, dv):
     """Inicia o processo RPA executando o script app.py"""
     try:
@@ -908,6 +1026,117 @@ def logout():
     flash('Você foi desconectado com sucesso', 'success')
     return redirect(url_for('login'))
 
+@app.route('/start_rpa_process', methods=['POST'])
+def execute_rpa_frontend():
+    """Inicia o processo RPA diretamente pelo frontend."""
+    if not session.get('logged_in'):
+        flash('Você precisa fazer login para acessar esta página', 'error')
+        return redirect(url_for('login'))
+    
+    group = request.form.get('group')
+    company_id = request.form.get('company_id')
+    
+    if not group or not company_id:
+        flash('Dados incompletos. Grupo ou empresa não fornecidos.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    company = get_company_by_id(group, company_id)
+    
+    if not company:
+        flash('Empresa não encontrada', 'error')
+        return redirect(url_for('dashboard', group=group))
+    
+    cpf = request.form.get('cpf', '')
+    banco = request.form.get('banco', '')
+    agencia = request.form.get('agencia', '')
+    conta = request.form.get('conta', '')
+    dv = request.form.get('dv', '')
+    
+    if not all([cpf, banco, agencia, conta]):
+        flash('Todos os campos são obrigatórios', 'error')
+        return redirect(url_for('rpa_page', group=group, company_id=company_id))
+    
+    company_name = get_company_name(company)
+    comp_dir = get_company_comp_file_path(group, company)
+    comp_file = request.files.get('compFile')
+    comp_filepath = None
+    
+    if comp_file and comp_file.filename and allowed_file(comp_file.filename):
+        comp_filename = secure_filename(f"comp_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}.xlsx")
+        comp_filepath = os.path.join(comp_dir, comp_filename)
+        comp_file.save(comp_filepath)
+    else:
+        existing_comp_file = get_existing_comp_file(group, company)
+        if existing_comp_file:
+            comp_filepath = os.path.join(comp_dir, existing_comp_file)
+        else:
+            flash('É necessário fazer upload de um arquivo de competências', 'error')
+            return redirect(url_for('rpa_page', group=group, company_id=company_id))
+    
+    dados_bancarios_path = salvar_dados_bancarios(group, company, cpf, banco, agencia, conta, dv)
+    status_filepath = criar_planilha_status_empresa(group, company, comp_filepath)
+    
+    try:
+        rpa_started = start_rpa_process(company_name, comp_filepath, cpf, banco, agencia, conta, dv)
+        if rpa_started:
+            flash(f'Processo RPA iniciado para {company_name}', 'success')
+        else:
+            flash(f'Erro ao iniciar processo RPA para {company_name}', 'error')
+        return redirect(url_for('dashboard', group=group, company_id=company_id))
+    except Exception as e:
+        flash(f'Erro ao iniciar processo: {str(e)}', 'error')
+        return redirect(url_for('rpa_page', group=group, company_id=company_id))
+
+import threading
+
+def run_app_py_for_company(company_name, cpf, banco, agencia, conta, dv):
+    """
+    Executa o app.py passando o nome da empresa e dados bancários como argumentos de linha de comando
+    para evitar a necessidade de input manual.
+    """
+    print(f"Iniciando app.py para a empresa: {company_name}")
+    
+    # Adiciona a flag -u para saída não bufferizada e passa os argumentos necessários
+    cmd = [sys.executable, '-u', 'app.py', 
+           '--empresa', company_name,
+           '--cpf', cpf,
+           '--banco', banco,
+           '--agencia', agencia,
+           '--conta', conta,
+           '--dv', dv]
+    
+    proc = subprocess.Popen(cmd)
+    return proc
+
+def start_rpa_process(company_name, comp_filepath, cpf, banco, agencia, conta, dv):
+    """Inicia o processo RPA executando o script app.py"""
+    try:
+        print(f"Iniciando processo RPA para: {company_name}")
+        
+        # NÃO precisamos mais copiar o arquivo para a raiz
+        # O app.py vai buscar os arquivos no local correto
+        print(f"Arquivo de competências: {comp_filepath}")
+        print("Não é necessário copiar o arquivo, app.py irá buscar no local correto!")
+        
+        # Inicia o processo em uma thread separada para não bloquear Flask
+        proc = run_app_py_for_company(company_name, cpf, banco, agencia, conta, dv)
+        print(f"Processo RPA iniciado com PID: {proc.pid}")
+        
+        return True
+    except Exception as e:
+        print(f"Erro ao iniciar processo RPA: {str(e)}")
+        return False
+
+# Substitua o run_app_py no final do arquivo com essa versão:
+def run_app_py():
+    """Executa app.py sem argumentos - apenas para testes"""
+    # Em vez de executar o app.py diretamente, exibe uma mensagem de que deve ser usado com argumentos
+    print("O app.py deve ser executado através da interface web para receber corretamente os parâmetros da empresa")
+    # Se realmente precisar executar para testes:
+    # cmd = [sys.executable, '-u', 'app.py']
+    # proc = subprocess.Popen(cmd)
+    # proc.wait()
+
 if __name__ == '__main__':
     # Verificar e criar usuário padrão se necessário
     create_default_user(EXCEL_PATH)
@@ -924,8 +1153,9 @@ if __name__ == '__main__':
     group_counts = get_group_counts()
     print(f"Grupos disponíveis: {available_groups}")
     print(f"Contagem de empresas por grupo: {group_counts}")
+    # Inicia app.py em uma thread separada apenas se necessário para testes
+    # threading.Thread(target=run_app_py, daemon=True).start()
     
     # Inicia o servidor Flask
     print("Iniciando servidor Flask na porta 5000...")
-    print("Acesse http://localhost:5000 para usar o sistema.")
     app.run(debug=True)

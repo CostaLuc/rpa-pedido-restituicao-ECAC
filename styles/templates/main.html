@@ -204,6 +204,10 @@
                                     <div class="stat-label">Concluídos</div>
                                 </div>
                                 <div class="stat-card">
+                                    <div class="stat-number">{{ company_stats.processos_falhas }}</div>
+                                    <div class="stat-label">Falhas</div>
+                                </div>
+                                <div class="stat-card">
                                     <div class="stat-number">{{ company_stats.processos_pendentes }}</div>
                                     <div class="stat-label">Pendentes</div>
                                 </div>
@@ -213,26 +217,57 @@
                         <div class="history-panel">
                             <h3>Histórico de Processos</h3>
                             <div class="history-table-container">
-                                <table class="history-table">
+                                <table class="history-table" id="history-table">
                                     <thead>
                                         <tr>
                                             <th>Data</th>
                                             <th>Ação</th>
                                             <th>Status</th>
+                                            <th>Competência</th>
+                                            <th>Observação</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {% for item in company_stats.historico %}
-                                        <tr>
+                                        <tr class="history-item" data-page="1">
                                             <td>{{ item.data }}</td>
                                             <td>{{ item.acao }}</td>
                                             <td class="status-{{ item.status|lower }}">{{ item.status }}</td>
+                                            <td>{{ item.competencia }}</td>
+                                            <td class="observation">{{ item.observacao }}</td>
                                         </tr>
                                         {% endfor %}
+                                        {% if not company_stats.historico %}
+                                        <tr>
+                                            <td colspan="5" class="empty-history">Não há registros de atividades para exibir.</td>
+                                        </tr>
+                                        {% endif %}
                                     </tbody>
                                 </table>
                             </div>
+                            <!-- Controles de Paginação -->
+                            <div class="history-pagination">
+                                <button class="page-button" id="prev-page" onclick="changePage(-1)">
+                                    <i class="fas fa-chevron-left"></i>
+                                </button>
+                                <span class="page-info">
+                                    Página <span id="current-page">1</span> de <span id="total-pages">1</span>
+                                </span>
+                                <button class="page-button" id="next-page" onclick="changePage(1)">
+                                    <i class="fas fa-chevron-right"></i>
+                                </button>
+                                <div class="page-size-selector">
+                                    <label for="items-per-page">Itens por página:</label>
+                                    <select id="items-per-page" onchange="changePageSize(this.value)">
+                                        <option value="5">5</option>
+                                        <option value="10" selected>10</option>
+                                        <option value="20">20</option>
+                                        <option value="50">50</option>
+                                    </select>
+                                </div>
+                            </div>
                         </div>
+                        
                     </div>
                     
                     <div class="action-container">
@@ -315,7 +350,73 @@
                     modal.style.display = 'none';
                 }
             });
+            
+            // Inicializa a paginação do histórico se a tabela existir
+            initHistoryPagination();
         });
+        
+        // Código para paginação do histórico
+        let currentPage = 1;
+        let itemsPerPage = 10;
+        let totalItems = 0;
+        let totalPages = 1;
+        
+        function initHistoryPagination() {
+            const historyTable = document.getElementById('history-table');
+            if (!historyTable) return;
+            
+            const historyItems = document.querySelectorAll('.history-item');
+            totalItems = historyItems.length;
+            totalPages = Math.ceil(totalItems / itemsPerPage);
+            
+            document.getElementById('total-pages').textContent = totalPages;
+            
+            // Aplicar paginação inicial
+            updatePagination();
+        }
+        
+        function updatePagination() {
+            const historyItems = document.querySelectorAll('.history-item');
+            const startIdx = (currentPage - 1) * itemsPerPage;
+            const endIdx = startIdx + itemsPerPage;
+            
+            // Atualizar visibilidade dos itens
+            historyItems.forEach((item, index) => {
+                if (index >= startIdx && index < endIdx) {
+                    item.style.display = '';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+            
+            // Atualizar informações da página
+            document.getElementById('current-page').textContent = currentPage;
+            
+            // Atualizar estado dos botões
+            document.getElementById('prev-page').disabled = currentPage === 1;
+            document.getElementById('prev-page').classList.toggle('disabled', currentPage === 1);
+            
+            document.getElementById('next-page').disabled = currentPage === totalPages;
+            document.getElementById('next-page').classList.toggle('disabled', currentPage === totalPages);
+        }
+        
+        function changePage(delta) {
+            const newPage = currentPage + delta;
+            if (newPage < 1 || newPage > totalPages) return;
+            
+            currentPage = newPage;
+            updatePagination();
+        }
+        
+        function changePageSize(size) {
+            itemsPerPage = parseInt(size);
+            totalPages = Math.ceil(totalItems / itemsPerPage);
+            document.getElementById('total-pages').textContent = totalPages;
+            
+            // Resetar para primeira página ao mudar tamanho
+            currentPage = 1;
+            updatePagination();
+        }
         
         // Função para abrir o modal de seleção de empresa
         function openCompanyModal() {

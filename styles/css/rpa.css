@@ -1,0 +1,56 @@
+/* Estilização para os campos bloqueados */
+.locked-field {
+    background-color: #f8f9fa;
+    border-color: #dee2e6;
+    color: #495057;
+    cursor: not-allowed;
+}
+
+/* Estilização para os campos desbloqueados */
+.unlocked-field {
+    background-color: #fff;
+    border-color: #80bdff;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* Estilização para os ícones de cadeado */
+.lock-icon {
+    background-color: #e9ecef;
+    color: #6c757d;
+}
+
+.bi-lock-fill {
+    color: #6c757d;
+}
+
+.bi-unlock-fill {
+    color: #198754;
+}
+
+/* Adiciona um leve destaque para campos desbloqueados */
+.unlocked-field:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* Estilo para o botão de editar */
+#editButton.btn-warning {
+    background-color: #fd7e14;
+    border-color: #fd7e14;
+    color: #fff;
+}
+
+#editButton.btn-warning:hover {
+    background-color: #e67010;
+    border-color: #e67010;
+}
+
+/* Estilização adicional para os formulários */
+form {
+    margin-bottom: 1rem;
+}
+
+/* Melhorias na visualização da seção de dados */
+.input-group {
+    margin-bottom: 0.5rem;
+}
