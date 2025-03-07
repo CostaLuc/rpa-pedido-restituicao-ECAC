@@ -1,0 +1,10 @@
+{
+  "12345678901234": {
+    "path": "C:/caminho/para/certificados/empresa1.pfx",
+    "password": "senha123"
+  },
+  "56789012345678": {
+    "path": "C:/caminho/para/certificados/empresa2.pfx",
+    "password": "senha456"
+  }
+}

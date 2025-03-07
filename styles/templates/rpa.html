@@ -4,176 +4,219 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RPA Processo - ECAC</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/rpa.css') }}">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.3/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="../css/styles.css">
-    <link rel="stylesheet" href="../css/rpa.css">
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="#">Sistema RPA ECAC</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" 
-                    aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('dashboard', group=group) }}">Dashboard</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('select_group') }}">Selecionar Grupo</a>
-                    </li>
-                </ul>
-                <ul class="navbar-nav">
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownMenuLink" role="button"
-                           data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-person-circle"></i> {{ username }}
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdownMenuLink">
-                            <li><a class="dropdown-item" href="{{ url_for('logout') }}">Sair</a></li>
-                        </ul>
-                    </li>
-                </ul>
+    <div class="container-fluid px-0">
+        <div class="row g-0">
+            <!-- Sidebar / Menu Lateral -->
+            <div class="col-auto d-none d-lg-block" style="width: 250px; background-color: var(--sidebar-color); min-height: 100vh;">
+                <div class="d-flex flex-column h-100">
+                    <div class="text-center py-4">
+                        <h2 class="text-white fw-bold fs-5">RPA Pedido de Restituição</h2>
+                    </div>
+
+                    <ul class="nav flex-column" style="padding-left: 0;">
+                        <li class="nav-item mb-2">
+                            <a href="{{ url_for('dashboard', group=group, company_id=company_id) }}" class="nav-link text-white d-flex align-items-center px-4 py-3">
+                                <i class="fas fa-home me-3"></i>
+                                <span>Status</span>
+                            </a>
+                        </li>
+                        <li class="nav-item mb-2">
+                            <a href="{{ url_for('select_group') }}" class="nav-link text-white d-flex align-items-center px-4 py-3">
+                                <i class="fas fa-building me-3"></i>
+                                <span>Selecionar Grupo</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
             </div>
-        </div>
-    </nav>
 
-    <div class="container my-4">
-        <!-- Mensagens flash -->
-        {% for category, message in messages %}
-        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-            {{ message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-        {% endfor %}
-
-        <div class="card mb-4">
-            <div class="card-header bg-primary text-white">
-                <h4>Processo RPA para {{ company.get('empresas', company.get('empresa', 'Empresa')) }}</h4>
-                <h5>CNPJ: {{ company.get('CNPJ', company.get('cnpj', 'N/A')) }}</h5>
-            </div>
-            <div class="card-body">
-                <form action="{{ url_for('save_rpa_data') }}" method="post" enctype="multipart/form-data" id="rpaForm">
-                    <input type="hidden" name="group" value="{{ group }}">
-                    <input type="hidden" name="company_id" value="{{ company_id }}">
-                    
-                    <div class="mb-3">
-                        <h5 class="mb-3">Dados do Contribuinte</h5>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <label for="cpf" class="form-label">CPF do Contribuinte:</label>
-                                <div class="input-group">
-                                    <input type="text" class="form-control locked-field" id="cpf" name="cpf" 
-                                           placeholder="000.000.000-00" value="{{ existing_data.get('cpf', '') }}" required readonly>
-                                    <span class="input-group-text lock-icon"><i class="bi bi-lock-fill"></i></span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <h5 class="mb-3">Dados Bancários</h5>
-                        <div class="row">
-                            <div class="col-md-3">
-                                <label for="banco" class="form-label">Banco:</label>
-                                <div class="input-group">
-                                    <input type="text" class="form-control locked-field" id="banco" name="banco" 
-                                           placeholder="Ex: 001" value="{{ existing_data.get('banco', '') }}" required readonly>
-                                    <span class="input-group-text lock-icon"><i class="bi bi-lock-fill"></i></span>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <label for="agencia" class="form-label">Agência:</label>
-                                <div class="input-group">
-                                    <input type="text" class="form-control locked-field" id="agencia" name="agencia" 
-                                           placeholder="Sem dígito" value="{{ existing_data.get('agencia', '') }}" required readonly>
-                                    <span class="input-group-text lock-icon"><i class="bi bi-lock-fill"></i></span>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <label for="conta" class="form-label">Conta:</label>
-                                <div class="input-group">
-                                    <input type="text" class="form-control locked-field" id="conta" name="conta" 
-                                           placeholder="Sem dígito" value="{{ existing_data.get('conta', '') }}" required readonly>
-                                    <span class="input-group-text lock-icon"><i class="bi bi-lock-fill"></i></span>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <label for="dv" class="form-label">Dígito Verificador:</label>
-                                <div class="input-group">
-                                    <input type="text" class="form-control locked-field" id="dv" name="dv" 
-                                           placeholder="DV" value="{{ existing_data.get('dv', '') }}" required readonly>
-                                    <span class="input-group-text lock-icon"><i class="bi bi-lock-fill"></i></span>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- Adicionar mensagem informativa sobre dados bancários existentes -->
-                        {% if existing_data.get('banco') or existing_data.get('agencia') or existing_data.get('conta') %}
-                        <div class="alert alert-info mt-2">
-                            <i class="bi bi-info-circle"></i> 
-                            Dados bancários já cadastrados. Para editar, clique no botão "Editar Dados".
-                        </div>
-                        {% endif %}
-                    </div>
-                    
-                    <div class="mb-3">
-                        <h5 class="mb-3">Arquivo de Competências</h5>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <label for="compFile" class="form-label">Upload do arquivo de competências (Excel):</label>
-                                <input class="form-control" type="file" id="compFile" name="compFile" accept=".xlsx,.xls">
-                                <div class="form-text">
-                                    Upload do arquivo com as competências e valores. Formatos aceitos: .xlsx, .xls
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                {% if existing_comp_file %}
-                                <div class="alert alert-info">
-                                    <i class="bi bi-file-earmark-excel"></i> 
-                                    Arquivo existente: {{ existing_comp_file }}
-                                    <p class="mb-0">Um novo upload substituirá o arquivo existente.</p>
-                                </div>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-
+            <!-- Conteúdo principal -->
+            <div class="col">
+                <header class="bg-white p-4 shadow-sm mb-4">
                     <div class="d-flex justify-content-between align-items-center">
-                        <a href="{{ url_for('dashboard', group=group, company_id=company_id) }}" class="btn btn-secondary">
-                            <i class="bi bi-arrow-left"></i> Voltar
-                        </a>
-                        <div>
-                            <button type="button" id="editButton" class="btn btn-warning me-2">
-                                <i class="bi bi-pencil"></i> Editar Dados
-                            </button>
-                            <button type="submit" class="btn btn-success" id="submitButton">
-                                <i class="bi bi-play-fill"></i> Iniciar Processo RPA
-                            </button>
+                        <h2 class="h5 mb-0">Iniciar RPA</h2>
+                        <div class="d-flex align-items-center gap-3">
+                            <span>Olá, {{ username }}</span>
+                            <div class="rounded-circle bg-primary d-flex align-items-center justify-content-center position-relative" style="width: 40px; height: 40px; cursor: pointer;" id="userProfileDropdown">
+                                <i class="fas fa-user text-white"></i>
+                                <div class="dropdown-menu position-absolute end-0" style="top: 100%; margin-top: 0.5rem; display: none; min-width: 150px; border-radius: 0.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+                                    <a href="{{ url_for('logout') }}" class="dropdown-item d-flex align-items-center px-3 py-2 text-decoration-none">
+                                        <i class="fas fa-sign-out-alt text-danger me-2"></i> Sair
+                                    </a>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </form>
+                </header>
 
-                <form action="{{ url_for('execute_rpa_frontend') }}" method="post" enctype="multipart/form-data" class="mt-3">
-                    <input type="hidden" name="group" value="{{ group }}">
-                    <input type="hidden" name="company_id" value="{{ company_id }}">
-                    <input type="hidden" name="cpf" value="{{ existing_data.get('cpf', '') }}">
-                    <input type="hidden" name="banco" value="{{ existing_data.get('banco', '') }}">
-                    <input type="hidden" name="agencia" value="{{ existing_data.get('agencia', '') }}">
-                    <input type="hidden" name="conta" value="{{ existing_data.get('conta', '') }}">
-                    <input type="hidden" name="dv" value="{{ existing_data.get('dv', '') }}">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-play-fill"></i> Iniciar Processo RPA (Frontend)
-                    </button>
-                </form>
+                <div class="container">
+                    <!-- Mensagens flash -->
+                    {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} d-flex align-items-start">
+                        {% if category == 'success' %}
+                            <i class="fas fa-check-circle me-2 mt-1"></i>
+                        {% elif category == 'info' %}
+                            <i class="fas fa-info-circle me-2 mt-1"></i>
+                        {% elif category == 'warning' %}
+                            <i class="fas fa-exclamation-triangle me-2 mt-1"></i>
+                        {% elif category == 'danger' or category == 'error' %}
+                            <i class="fas fa-exclamation-circle me-2 mt-1"></i>
+                        {% endif %}
+                        <div>
+                            {{ message }}
+                        </div>
+                        <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    {% endfor %}
+
+                    <div class="card mb-4">
+                        <div class="card-header bg-primary text-white p-3">
+                            <h4 class="mb-1">Processo RPA para {{ company.get('empresas', company.get('empresa', 'Empresa')) }}</h4>
+                            <h5 class="fs-6 mb-0 fw-normal">CNPJ: {{ company.get('CNPJ', company.get('cnpj', 'N/A')) }}</h5>
+                        </div>
+                        <div class="card-body">
+                            <form action="{{ url_for('save_rpa_data') }}" method="post" enctype="multipart/form-data" id="rpaForm">
+                                <input type="hidden" name="group" value="{{ group }}">
+                                <input type="hidden" name="company_id" value="{{ company_id }}">
+                                
+                                <div class="mb-4">
+                                    <h5 class="mb-3 text-primary">Dados do Contribuinte</h5>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <label for="cpf" class="form-label">CPF do Contribuinte:</label>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control locked-field" id="cpf" name="cpf" 
+                                                    placeholder="000.000.000-00" value="{{ existing_data.get('cpf', '') }}" required readonly>
+                                                <span class="input-group-text lock-icon"><i class="bi bi-lock-fill"></i></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-4">
+                                    <h5 class="mb-3 text-primary">Dados Bancários</h5>
+                                    <div class="row">
+                                        <div class="col-md-3 mb-3 mb-md-0">
+                                            <label for="banco" class="form-label">Banco:</label>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control locked-field" id="banco" name="banco" 
+                                                    placeholder="Ex: 001" value="{{ existing_data.get('banco', '') }}" required readonly>
+                                                <span class="input-group-text lock-icon"><i class="bi bi-lock-fill"></i></span>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3 mb-3 mb-md-0">
+                                            <label for="agencia" class="form-label">Agência:</label>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control locked-field" id="agencia" name="agencia" 
+                                                    placeholder="Sem dígito" value="{{ existing_data.get('agencia', '') }}" required readonly>
+                                                <span class="input-group-text lock-icon"><i class="bi bi-lock-fill"></i></span>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3 mb-3 mb-md-0">
+                                            <label for="conta" class="form-label">Conta:</label>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control locked-field" id="conta" name="conta" 
+                                                    placeholder="Sem dígito" value="{{ existing_data.get('conta', '') }}" required readonly>
+                                                <span class="input-group-text lock-icon"><i class="bi bi-lock-fill"></i></span>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label for="dv" class="form-label">Dígito Verificador:</label>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control locked-field" id="dv" name="dv" 
+                                                    placeholder="DV" value="{{ existing_data.get('dv', '') }}" required readonly>
+                                                <span class="input-group-text lock-icon"><i class="bi bi-lock-fill"></i></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    {% if existing_data.get('banco') or existing_data.get('agencia') or existing_data.get('conta') %}
+                                    <div class="alert alert-info mt-3 d-flex align-items-center">
+                                        <i class="fas fa-info-circle me-2"></i> 
+                                        <span>Dados bancários já cadastrados. Para editar, clique no botão "Editar Dados".</span>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="mb-4">
+                                    <h5 class="mb-3 text-primary">Arquivo de Competências</h5>
+                                    <div class="row">
+                                        <div class="col-md-7">
+                                            <label for="compFile" class="form-label">Upload do arquivo de competências (Excel):</label>
+                                            <div class="input-group">
+                                                <input class="form-control" type="file" id="compFile" name="compFile" accept=".xlsx,.xls">
+                                                <button type="button" class="btn btn-secondary" id="saveFileButton" onclick="saveCompetenciasFile()">
+                                                    <i class="fas fa-save me-2"></i> Salvar arquivo
+                                                </button>
+                                            </div>
+                                            <div class="form-text">
+                                                Upload do arquivo com as competências e valores. Formatos aceitos: .xlsx, .xls
+                                            </div>
+                                        </div>
+                                        <div class="col-md-5">
+                                            {% if existing_comp_file %}
+                                            <div class="alert alert-info d-flex align-items-start p-3">
+                                                <i class="fas fa-file-excel me-2 mt-1"></i> 
+                                                <div>
+                                                    <div>Arquivo existente: {{ existing_comp_file }}</div>
+                                                    <small class="d-block mt-1">Um novo upload substituirá o arquivo existente.</small>
+                                                </div>
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <a href="{{ url_for('dashboard', group=group, company_id=company_id) }}" class="btn btn-secondary">
+                                        <i class="fas fa-arrow-left me-2"></i> Voltar
+                                    </a>
+                                    <div class="d-flex align-items-center">
+                                        <div id="saveStatusContainer" class="me-3">
+                                            <!-- Container para mensagem de status -->
+                                        </div>
+                                        <button type="button" id="editButton" class="btn btn-warning me-2">
+                                            <i class="fas fa-pencil me-2"></i> Editar Dados
+                                        </button>
+                                        <button type="submit" class="btn btn-success" id="submitButton">
+                                            <i class="fas fa-play me-2"></i> Iniciar Processo RPA
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // Adicionar ao início do bloco de script existente
+        document.addEventListener('DOMContentLoaded', function() {
+            // Dropdown para perfil do usuário
+            const userProfileDropdown = document.getElementById('userProfileDropdown');
+            const dropdownMenu = userProfileDropdown.querySelector('.dropdown-menu');
+            
+            userProfileDropdown.addEventListener('click', function(e) {
+                dropdownMenu.style.display = dropdownMenu.style.display === 'block' ? 'none' : 'block';
+                e.stopPropagation();
+            });
+            
+            // Fechar dropdown ao clicar fora
+            window.addEventListener('click', function() {
+                dropdownMenu.style.display = 'none';
+            });
+        });
+        
         // Máscara para o CPF
         document.getElementById('cpf').addEventListener('input', function(e) {
             let value = e.target.value.replace(/\D/g, '');
@@ -190,14 +233,19 @@
             e.target.value = value;
         });
 
+        // Variável para controlar o estado do modo de edição
+        let isEditMode = false;
+
         // Controle de edição de campos
         document.getElementById('editButton').addEventListener('click', function() {
-            const fields = document.querySelectorAll('.locked-field');
+            const fields = document.querySelectorAll('.locked-field, .unlocked-field');
             const lockIcons = document.querySelectorAll('.lock-icon i');
             const editButton = document.getElementById('editButton');
+            const submitButton = document.getElementById('submitButton');
+            const saveStatusContainer = document.getElementById('saveStatusContainer');
             
-            if (fields[0].readOnly) {
-                // Modo de edição
+            if (!isEditMode) {
+                // Ativar modo de edição
                 fields.forEach(field => {
                     field.readOnly = false;
                     field.classList.remove('locked-field');
@@ -209,11 +257,17 @@
                     icon.classList.add('bi-unlock-fill');
                 });
                 
-                editButton.innerHTML = '<i class="bi bi-check-lg"></i> Concluir Edição';
+                editButton.innerHTML = '<i class="fas fa-check me-2"></i> Concluir Edição';
                 editButton.classList.remove('btn-warning');
                 editButton.classList.add('btn-success');
+                
+                // Desabilita o botão de iniciar processo
+                submitButton.disabled = true;
+                submitButton.classList.add('disabled');
+                
+                isEditMode = true;
             } else {
-                // Modo de visualização
+                // Desativar modo de edição e salvar
                 fields.forEach(field => {
                     field.readOnly = true;
                     field.classList.remove('unlocked-field');
@@ -225,24 +279,173 @@
                     icon.classList.add('bi-lock-fill');
                 });
                 
-                editButton.innerHTML = '<i class="bi bi-pencil"></i> Editar Dados';
+                editButton.innerHTML = '<i class="fas fa-pencil me-2"></i> Editar Dados';
                 editButton.classList.remove('btn-success');
                 editButton.classList.add('btn-warning');
+                
+                // Habilita novamente o botão de iniciar processo
+                submitButton.disabled = false;
+                submitButton.classList.remove('disabled');
+                
+                // Limpar qualquer mensagem de status anterior
+                saveStatusContainer.innerHTML = '';
+                
+                // Criar um status de "Salvando..." temporário
+                const saveStatus = document.createElement('span');
+                saveStatus.className = 'save-status';
+                saveStatus.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvando...';
+                saveStatusContainer.appendChild(saveStatus);
+                
+                // Captura os valores dos campos
+                const cpf = document.getElementById('cpf') ? document.getElementById('cpf').value : '';
+                const banco = document.getElementById('banco') ? document.getElementById('banco').value : '';
+                const agencia = document.getElementById('agencia') ? document.getElementById('agencia').value : '';
+                const conta = document.getElementById('conta') ? document.getElementById('conta').value : '';
+                const dv = document.getElementById('dv') ? document.getElementById('dv').value : '';
+                const group = document.querySelector('input[name="group"]').value;
+                const companyId = document.querySelector('input[name="company_id"]').value;
+                
+                // Log para depuração
+                console.log("Enviando dados:", {
+                    cpf, banco, agencia, conta, dv, group, company_id: companyId
+                });
+                
+                // Envia os dados para o servidor
+                fetch('/save_banking_data', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        cpf: cpf,
+                        banco: banco,
+                        agencia: agencia,
+                        conta: conta,
+                        dv: dv,
+                        group: group,
+                        company_id: companyId
+                    })
+                })
+                .then(response => {
+                    console.log("Status da resposta:", response.status);
+                    if (!response.ok) {
+                        throw new Error(`Erro HTTP: ${response.status} - ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log("Resposta do servidor:", data);
+                    // Atualiza o status
+                    if (data.success) {
+                        saveStatus.innerHTML = '<i class="fas fa-check-circle text-success"></i> Dados salvos!';
+                    } else {
+                        saveStatus.innerHTML = '<i class="fas fa-exclamation-circle text-danger"></i> Erro: ' + (data.message || 'Falha ao salvar');
+                        console.error("Erro:", data.message);
+                    }
+                    
+                    // Remove a mensagem após 3 segundos
+                    setTimeout(() => {
+                        saveStatus.remove();
+                    }, 3000);
+                })
+                .catch(error => {
+                    console.error('Erro detalhado:', error);
+                    saveStatus.innerHTML = `<i class="fas fa-exclamation-triangle text-danger"></i> Falha: ${error.message}`;
+                    
+                    // Remove a mensagem após 5 segundos
+                    setTimeout(() => {
+                        saveStatus.remove();
+                    }, 5000);
+                });
+                
+                isEditMode = false;
             }
         });
 
-        // Sincronização dos dados bancários com o segundo formulário
-        document.getElementById('rpaForm').addEventListener('submit', function() {
-            // Atualiza os campos ocultos do segundo formulário com os valores atuais
-            const bancoDados = document.getElementById('banco').value;
-            const agenciaDados = document.getElementById('agencia').value;
-            const contaDados = document.getElementById('conta').value;
-            const dvDados = document.getElementById('dv').value;
+        // Função para salvar apenas o arquivo de competências
+        function saveCompetenciasFile() {
+            const fileInput = document.getElementById('compFile');
+            if (!fileInput.files || !fileInput.files[0]) {
+                alert('Por favor, selecione um arquivo para upload.');
+                return;
+            }
             
-            document.querySelectorAll('form')[1].querySelector('input[name="banco"]').value = bancoDados;
-            document.querySelectorAll('form')[1].querySelector('input[name="agencia"]').value = agenciaDados;
-            document.querySelectorAll('form')[1].querySelector('input[name="conta"]').value = contaDados;
-            document.querySelectorAll('form')[1].querySelector('input[name="dv"]').value = dvDados;
+            const formData = new FormData();
+            formData.append('compFile', fileInput.files[0]);
+            formData.append('group', document.querySelector('input[name="group"]').value);
+            formData.append('company_id', document.querySelector('input[name="company_id"]').value);
+            
+            // Mostra mensagem de salvamento
+            const saveStatusContainer = document.getElementById('saveStatusContainer');
+            saveStatusContainer.innerHTML = '<span class="save-status"><i class="fas fa-spinner fa-spin"></i> Salvando arquivo...</span>';
+            
+            // Envia o arquivo
+            fetch('/save_competencias_file', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Erro HTTP: ${response.status} - ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    saveStatusContainer.innerHTML = '<span class="save-status text-success"><i class="fas fa-check-circle"></i> Arquivo salvo com sucesso!</span>';
+                    
+                    // Atualiza o texto do arquivo existente se necessário
+                    const fileInfoCol = document.querySelector('.col-md-5');
+                    if (fileInfoCol) {
+                        // Verifica se o elemento de alerta já existe
+                        const existingAlertInfo = fileInfoCol.querySelector('.alert-info');
+                        
+                        if (existingAlertInfo) {
+                            // Atualiza o alerta existente
+                            const contentDiv = existingAlertInfo.querySelector('div');
+                            if (contentDiv) {
+                                contentDiv.innerHTML = `<div>Arquivo existente: ${data.filename}</div><small class="d-block mt-1">Um novo upload substituirá o arquivo existente.</small>`;
+                            }
+                        } else {
+                            // Cria um novo alerta se não existir
+                            fileInfoCol.innerHTML = `
+                            <div class="alert alert-info d-flex align-items-start p-3">
+                                <i class="fas fa-file-excel me-2 mt-1"></i> 
+                                <div>
+                                    <div>Arquivo existente: ${data.filename}</div>
+                                    <small class="d-block mt-1">Um novo upload substituirá o arquivo existente.</small>
+                                </div>
+                            </div>`;
+                        }
+                    }
+                } else {
+                    saveStatusContainer.innerHTML = `<span class="save-status text-danger"><i class="fas fa-exclamation-triangle"></i> ${data.message}</span>`;
+                }
+                
+                // Remove a mensagem após alguns segundos
+                setTimeout(() => {
+                    saveStatusContainer.innerHTML = '';
+                }, 5000);
+            })
+            .catch(error => {
+                console.error('Erro detalhado:', error);
+                saveStatusContainer.innerHTML = `<span class="save-status text-danger"><i class="fas fa-exclamation-triangle"></i> ${error.message}</span>`;
+                
+                setTimeout(() => {
+                    saveStatusContainer.innerHTML = '';
+                }, 5000);
+            });
+        }
+
+        // Desativar botões durante o processamento
+        document.querySelectorAll('form').forEach(form => {
+            form.addEventListener('submit', function() {
+                // Desativar todos os botões de submit para evitar duplo clique
+                document.querySelectorAll('button[type="submit"]').forEach(button => {
+                    button.disabled = true;
+                    button.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Processando...';
+                });
+            });
         });
     </script>
 </body>

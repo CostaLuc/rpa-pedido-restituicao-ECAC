@@ -1,3 +1,174 @@
+:root {
+    --primary-color: #4361ee;
+    --primary-hover: #3a56d4;
+    --secondary-color: #3f37c9;
+    --background-color: #f8f9fa;
+    --card-bg-color: #ffffff;
+    --sidebar-color: #2b2d42;
+    --text-color: #2b2d42;
+    --text-light: #f8f9fa;
+    --text-muted: #6c757d;
+    --success-color: #38b000;
+    --warning-color: #ff9f1c;
+    --danger-color: #d90429;
+    --info-color: #4cc9f0;
+    --border-color: #dee2e6;
+    --box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    --transition: all 0.3s ease;
+    --border-radius: 8px;
+}
+
+body {
+    font-family: 'Poppins', sans-serif;
+    background-color: var(--background-color);
+    color: var(--text-color);
+}
+
+.navbar {
+    background-color: var(--primary-color) !important;
+    box-shadow: var(--box-shadow);
+}
+
+.navbar-brand {
+    font-weight: 600;
+}
+
+.navbar-dark .navbar-nav .nav-link {
+    color: var(--text-light);
+}
+
+.card {
+    border-radius: var(--border-radius);
+    box-shadow: var(--box-shadow);
+    border: 1px solid var(--border-color);
+    transition: var(--transition);
+}
+
+.card:hover {
+    transform: translateY(-5px);
+}
+
+.card-header {
+    background-color: var(--primary-color) !important;
+    color: white;
+    border-top-left-radius: var(--border-radius) !important;
+    border-top-right-radius: var(--border-radius) !important;
+    border-bottom: none;
+}
+
+.form-control {
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+    padding: 12px;
+    transition: var(--transition);
+}
+
+.form-control:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.25rem rgba(67, 97, 238, 0.25);
+}
+
+.btn {
+    border-radius: var(--border-radius);
+    padding: 10px 16px;
+    font-weight: 500;
+    transition: var(--transition);
+    text-decoration: none;
+}
+
+.btn-primary {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.btn-primary:hover {
+    background-color: var(--primary-hover);
+    border-color: var(--primary-hover);
+    transform: translateY(-2px);
+}
+
+.btn-success {
+    background-color: var(--success-color);
+    border-color: var(--success-color);
+}
+
+.btn-success:hover {
+    background-color: #2c9000;
+    border-color: #2c9000;
+    transform: translateY(-2px);
+}
+
+.btn-warning {
+    background-color: var(--warning-color);
+    border-color: var(--warning-color);
+    color: white;
+}
+
+.btn-warning:hover {
+    background-color: #e58600;
+    border-color: #e58600;
+    color: white;
+    transform: translateY(-2px);
+}
+
+.btn-secondary {
+    background-color: #6c757d;
+    border-color: #6c757d;
+}
+
+.btn-secondary:hover {
+    background-color: #5a6268;
+    border-color: #5a6268;
+    transform: translateY(-2px);
+}
+
+.input-group-text {
+    background-color: #f1f3f9;
+    border-color: var(--border-color);
+}
+
+.form-label {
+    font-weight: 500;
+    margin-bottom: 8px;
+    color: var(--text-color);
+}
+
+.form-text {
+    color: var(--text-muted);
+    font-size: 14px;
+}
+
+.alert {
+    border-radius: var(--border-radius);
+    padding: 15px 20px;
+    margin-bottom: 20px;
+    border: none;
+}
+
+.alert-info {
+    background-color: rgba(76, 201, 240, 0.12);
+    border-left: 4px solid var(--info-color);
+    color: #0077b6;
+}
+
+.alert-success {
+    background-color: rgba(56, 176, 0, 0.12);
+    border-left: 4px solid var(--success-color);
+    color: #2a6a00;
+}
+
+.alert-warning {
+    background-color: rgba(255, 159, 28, 0.12);
+    border-left: 4px solid var(--warning-color);
+    color: #a65100;
+}
+
+.alert-danger {
+    background-color: rgba(217, 4, 41, 0.12);
+    border-left: 4px solid var(--danger-color);
+    color: #920124;
+}
+
 /* Estilização para os campos bloqueados */
 .locked-field {
     background-color: #f8f9fa;
@@ -8,15 +179,20 @@
 
 /* Estilização para os campos desbloqueados */
 .unlocked-field {
-    background-color: #fff;
-    border-color: #80bdff;
-    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    background-color: #fff3cd;
+    border-color: #ffda6a;
+    box-shadow: none;
 }
 
 /* Estilização para os ícones de cadeado */
 .lock-icon {
     background-color: #e9ecef;
     color: #6c757d;
+    border-color: #dee2e6;
+}
+
+.bi-lock-fill, .bi-unlock-fill {
+    font-size: 16px;
 }
 
 .bi-lock-fill {
@@ -24,7 +200,7 @@
 }
 
 .bi-unlock-fill {
-    color: #198754;
+    color: var(--warning-color);
 }
 
 /* Adiciona um leve destaque para campos desbloqueados */
@@ -53,4 +229,57 @@ form {
 /* Melhorias na visualização da seção de dados */
 .input-group {
     margin-bottom: 0.5rem;
+}
+
+/* Estilo para o feedback quando salva dados */
+.save-status {
+    margin-left: 10px;
+    font-size: 14px;
+    display: inline-flex;
+    align-items: center;
+}
+
+.save-status i {
+    margin-right: 5px;
+}
+
+.spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.nav-item .dropdown-menu {
+    border-radius: var(--border-radius);
+    box-shadow: var(--box-shadow);
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+}
+
+.dropdown-item {
+    padding: 8px 16px;
+    transition: var(--transition);
+}
+
+.dropdown-item:hover {
+    background-color: #f1f3f9;
+}
+
+.dropdown-item:active {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+@media (max-width: 768px) {
+    .container {
+        padding-left: 15px;
+        padding-right: 15px;
+    }
+    
+    .card-body {
+        padding: 20px 15px;
+    }
 }

@@ -37,22 +37,20 @@ def allowed_file(filename):
 def get_available_groups():
     """Retorna a lista de grupos disponíveis."""
     try:
-        if not os.path.exists(GROUPS_DIR):
-            os.makedirs(GROUPS_DIR)
-            print(f"Diretório {GROUPS_DIR} criado.")
-            
-        # Verifique se o diretório existe e liste seu conteúdo
-        print(f"Verificando diretório: {GROUPS_DIR}")
-        print(f"Existe? {os.path.exists(GROUPS_DIR)}")
-        print(f"Conteúdo: {os.listdir(GROUPS_DIR)}")
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), GROUPS_DIR)
+        if not os.path.exists(path):
+            os.makedirs(path)
+            print(f"Diretório {path} criado.")
         
-        groups = [f for f in os.listdir(GROUPS_DIR) 
-                 if os.path.isdir(os.path.join(GROUPS_DIR, f))]
+        groups = []
+        for item in os.listdir(path):
+            item_path = os.path.join(path, item)
+            if os.path.isdir(item_path) and os.path.exists(os.path.join(item_path, f"{item}.xlsx")):
+                groups.append(item)
         
-        print(f"Grupos encontrados: {groups}")
         return groups
     except Exception as e:
-        print(f"Erro ao obter grupos: {str(e)}")
+        print(f"Erro ao obter grupos disponíveis: {str(e)}")
         return []
 
 def get_group_counts():
@@ -363,6 +361,29 @@ def get_company_existing_data(group, company_id):
     if not company:
         return {}
     
+    # Busca primeiro no arquivo centralizado de dados bancários
+    try:
+        dados_bancarios_path = get_dados_bancarios_path(group)
+        if os.path.exists(dados_bancarios_path):
+            df_dados = pd.read_excel(dados_bancarios_path)
+            company_name = get_company_name(company)
+            
+            # Busca pelo nome da empresa
+            empresa_row = df_dados[df_dados['empresa'].str.strip() == company_name.strip()]
+            if not empresa_row.empty:
+                print(f"Dados bancários encontrados para {company_name} no arquivo centralizado")
+                row = empresa_row.iloc[0]
+                return {
+                    'cpf': row.get('cpf', ''),
+                    'banco': row.get('banco', ''),
+                    'agencia': row.get('agencia', ''),
+                    'conta': row.get('conta', ''),
+                    'dv': row.get('dv', '')
+                }
+    except Exception as e:
+        print(f"Erro ao buscar dados bancários centralizados: {str(e)}")
+    
+    # Tenta buscar nos metadados do arquivo de status (método anterior)
     status_path = get_company_status_path(group, company)
     if not os.path.exists(status_path):
         return {}
@@ -763,40 +784,116 @@ def rpa_page():
                           existing_comp_file=existing_comp_file)
 
 def start_rpa_process(company_name, comp_filepath, cpf, banco, agencia, conta, dv):
-    """Inicia o processo RPA executando o script app.py"""
+    """Inicia o processo RPA executando o script acessar_ecac.py seguido por app.py"""
     try:
         print(f"Iniciando processo RPA para: {company_name}")
-        print(f"Arquivo de competências: {comp_filepath}")
         
-        # Copia o arquivo comp.xlsx para o diretório raiz do RPA
-        rpa_comp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'comp.xlsx')
-        shutil.copy2(comp_filepath, rpa_comp_path)
+        # Primeiro, encontramos o CNPJ da empresa para acessar_ecac.py
+        cnpj = None
+        group = session.get('selected_group')
         
-        # Constrói o comando para executar o app.py
+        # Buscar o CNPJ da empresa no grupo
+        if group:
+            try:
+                excel_path = os.path.join(GROUPS_DIR, group, f"{group}.xlsx")
+                if os.path.exists(excel_path):
+                    df = pd.read_excel(excel_path)
+                    # Procura por empresas ou empresa (flexibilidade nos nomes das colunas)
+                    empresa_col = 'empresas' if 'empresas' in df.columns else 'empresa'
+                    cnpj_col = 'CNPJ' if 'CNPJ' in df.columns else 'cnpj'
+                    
+                    # Busca a linha com o nome da empresa
+                    empresa_row = df[df[empresa_col].str.strip() == company_name.strip()]
+                    if not empresa_row.empty:
+                        cnpj = empresa_row.iloc[0][cnpj_col]
+                        print(f"CNPJ encontrado para {company_name}: {cnpj}")
+                    else:
+                        print(f"Empresa {company_name} não encontrada no grupo {group}")
+            except Exception as e:
+                print(f"Erro ao buscar CNPJ da empresa: {str(e)}")
+        
+        if not cnpj:
+            print("CNPJ não encontrado. O processo pode falhar.")
+        
+        # Tenta importar o módulo diretamente (método mais confiável)
+        try:
+            print("Tentando executar usando módulo acessar_ecac importado...")
+            import acessar_ecac
+            result = acessar_ecac.main(cnpj=cnpj, group=group)
+            
+            if result:
+                print("Acesso ao ECAC realizado com sucesso via módulo importado.")
+                # O app.py já foi chamado pelo acessar_ecac.main()
+                return True
+            else:
+                print("Falha no acesso ao ECAC via módulo importado.")
+                # Tenta o método alternativo abaixo
+        except Exception as e:
+            print(f"Erro ao executar via módulo importado: {str(e)}")
+            # Continua para o método alternativo
+        
+        # Método alternativo - execução via subprocess
+        # 1) Executar acessar_ecac.py primeiro (com o CNPJ da empresa)
+        print("Executando acessar_ecac.py para fazer login...")
         python_executable = sys.executable
+        ecac_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'acessar_ecac.py')
+        
+        # Prepara o comando com argumentos
+        cmd_ecac = [python_executable, ecac_script]
+        
+        if cnpj:
+            cmd_ecac.extend(["--cnpj", cnpj])
+        
+        if group:
+            cmd_ecac.extend(["--group", group])
+        
+        # Executa acessar_ecac.py e espera pela conclusão
+        print(f"Comando: {' '.join(cmd_ecac)}")
+        ecac_proc = subprocess.run(cmd_ecac, 
+                                  stdout=subprocess.PIPE, 
+                                  stderr=subprocess.PIPE,
+                                  text=True)
+        
+        # Verifica o resultado da execução
+        if ecac_proc.returncode != 0:
+            print(f"Falha no acesso ao ECAC. Código de retorno: {ecac_proc.returncode}")
+            print(f"Saída de erro: {ecac_proc.stderr}")
+            return False
+        
+        print("Acesso ao ECAC realizado com sucesso. Iniciando app.py...")
+        
+        # 2) Agora executa app.py com os parâmetros necessários
         app_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'app.py')
         
-        # Executa o script app.py em um processo separado
-        cmd = [python_executable, app_script]
+        # Constrói o comando para executar o app.py com todos os parâmetros necessários
+        cmd_app = [
+            python_executable, 
+            app_script,
+            "--empresa", company_name,
+            "--cpf", cpf,
+            "--banco", banco,
+            "--agencia", agencia,
+            "--conta", conta
+        ]
         
-        # Executa o processo RPA em um processo separado sem bloquear o Flask
-        proc = subprocess.Popen(cmd, 
-                               stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE,
-                               stdin=subprocess.PIPE,
-                               text=True,
-                               bufsize=1,
-                               universal_newlines=True)
+        if dv:
+            cmd_app.extend(["--dv", dv])
         
-        # Envia os inputs necessários para o processo
-        proc.stdin.write(f"{company_name}\n")
-        proc.stdin.write(f"{cpf}\n")
+        # Executa o processo app.py
+        print(f"Comando: {' '.join(cmd_app)}")
+        app_proc = subprocess.Popen(cmd_app,
+                                   stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE,
+                                   text=True,
+                                   bufsize=1,
+                                   universal_newlines=True)
         
-        print(f"Processo RPA iniciado com PID: {proc.pid}")
-        
+        print(f"Processo RPA iniciado com PID: {app_proc.pid}")
         return True
+        
     except Exception as e:
         print(f"Erro ao iniciar processo RPA: {str(e)}")
+        traceback.print_exc()
         return False
 
 @app.route('/save_rpa_data', methods=['POST'])
@@ -878,13 +975,46 @@ def save_rpa_data():
         rpa_comp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'comp.xlsx')
         shutil.copy2(comp_filepath, rpa_comp_path)
         print(f"Arquivo de competências copiado para {rpa_comp_path}")
+        
+        # Registra evento no log
+        try:
+            nome_empresa_normalizado = company_name.strip().upper().replace(' ', '_')
+            eventos_dir = os.path.join('db', 'status', group, nome_empresa_normalizado)
+            if not os.path.exists(eventos_dir):
+                os.makedirs(eventos_dir, exist_ok=True)
+                
+            eventos_path = os.path.join(eventos_dir, 'eventos.xlsx')
+            
+            evento = {
+                'data': [datetime.datetime.now()],
+                'acao': ['ATUALIZAÇÃO DE DADOS'],
+                'status': ['SUCESSO'],
+                'competencia': ['Todas'],
+                'observacao': [f"Dados bancários atualizados e processo RPA iniciado: CPF {cpf}, Banco {banco}, Agência {agencia}, Conta {conta}, DV {dv}"]
+            }
+            
+            df_evento = pd.DataFrame(evento)
+            
+            if os.path.exists(eventos_path):
+                try:
+                    df_existente = pd.read_excel(eventos_path)
+                    df_evento = pd.concat([df_evento, df_existente], ignore_index=True)
+                    if len(df_evento) > 100:
+                        df_evento = df_evento.head(100)
+                except Exception as e:
+                    print(f"Erro ao ler eventos existentes: {str(e)}")
+            
+            df_evento.to_excel(eventos_path, index=False)
+        except Exception as e:
+            print(f"Erro ao registrar evento: {str(e)}")
+            
     except Exception as e:
         print(f"Erro ao copiar arquivo de competências: {str(e)}")
         flash(f'Erro ao copiar arquivo de competências: {str(e)}', 'error')
         return redirect(url_for('rpa_page', group=group, company_id=company_id))
     
     try:
-        # Inicia o processo RPA
+        # Inicia o processo RPA - garante que acessar_ecac.py seja executado antes de app.py
         rpa_started = start_rpa_process(company_name, comp_filepath, cpf, banco, agencia, conta, dv)
         
         if rpa_started:
@@ -896,98 +1026,6 @@ def save_rpa_data():
     except Exception as e:
         flash(f'Erro ao iniciar processo: {str(e)}', 'error')
         return redirect(url_for('rpa_page', group=group, company_id=company_id))
-
-    # Registra evento de atualização de dados
-    try:
-        nome_empresa_normalizado = company_name.strip().upper().replace(' ', '_')
-        eventos_dir = os.path.join('db', 'status', group, nome_empresa_normalizado)
-        if not os.path.exists(eventos_dir):
-            os.makedirs(eventos_dir, exist_ok=True)
-            
-        eventos_path = os.path.join(eventos_dir, 'eventos.xlsx')
-        
-        evento = {
-            'data': [datetime.datetime.now()],
-            'acao': ['ATUALIZAÇÃO DE DADOS'],
-            'status': ['SUCESSO'],
-            'competencia': ['Todas'],
-            'observacao': [f"Dados bancários atualizados: CPF {cpf}, Banco {banco}, Agência {agencia}, Conta {conta}, DV {dv}"]
-        }
-        
-        df_evento = pd.DataFrame(evento)
-        
-        # Se o arquivo já existe, adiciona o novo evento
-        if os.path.exists(eventos_path):
-            try:
-                df_existente = pd.read_excel(eventos_path)
-                df_evento = pd.concat([df_evento, df_existente], ignore_index=True)
-                # Limita a 100 eventos
-                if len(df_evento) > 100:
-                    df_evento = df_evento.head(100)
-            except Exception as e:
-                print(f"Erro ao ler eventos existentes: {str(e)}")
-                # Continua com apenas o novo evento
-        
-        # Salva o evento
-        df_evento.to_excel(eventos_path, index=False)
-        print(f"Evento de atualização de dados registrado em {eventos_path}")
-        
-        # Tenta também registrar na pasta "save" para redundância
-        try:
-            diretorio_save = os.path.join('db', 'status', 'save')
-            if not os.path.exists(diretorio_save):
-                os.makedirs(diretorio_save)
-                
-            eventos_save_path = os.path.join(diretorio_save, f"{nome_empresa_normalizado}_eventos.xlsx")
-            
-            # Se já existe o arquivo, adiciona o novo evento
-            if os.path.exists(eventos_save_path):
-                save_df = pd.read_excel(eventos_save_path)
-                save_df = pd.concat([df_evento, save_df], ignore_index=True)
-                if len(save_df) > 100:
-                    save_df = save_df.head(100)
-            else:
-                save_df = df_evento
-                
-            save_df.to_excel(eventos_save_path, index=False)
-        except Exception as e:
-            print(f"Aviso: Não foi possível registrar evento na pasta save: {str(e)}")
-        
-    except Exception as e:
-        print(f"Erro ao registrar evento: {str(e)}")
-
-def start_rpa_process(company_name, comp_filepath, cpf, banco, agencia, conta, dv):
-    """Inicia o processo RPA executando o script app.py"""
-    try:
-        print(f"Iniciando processo RPA para: {company_name}")
-        
-        # Constrói o comando para executar o app.py
-        python_executable = sys.executable
-        app_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'app.py')
-        
-        # Executa o script app.py em um processo separado
-        cmd = [python_executable, app_script]
-        
-        # Executa o processo RPA em um processo separado sem bloquear o Flask
-        proc = subprocess.Popen(cmd, 
-                               stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE,
-                               stdin=subprocess.PIPE,
-                               text=True,
-                               bufsize=1,
-                               universal_newlines=True)
-        
-        # Envia os inputs necessários para o processo (apenas o nome da empresa)
-        # O app.py vai buscar os dados bancários e outros na planilha
-        proc.stdin.write(f"{company_name}\n")
-        proc.stdin.flush()
-        
-        print(f"Processo RPA iniciado com PID: {proc.pid}")
-        
-        return True
-    except Exception as e:
-        print(f"Erro ao iniciar processo RPA: {str(e)}")
-        return False
 
 @app.route('/select_company')
 def select_company():
@@ -1137,6 +1175,225 @@ def run_app_py():
     # proc = subprocess.Popen(cmd)
     # proc.wait()
 
+def execute_rpa_sequence(company_name, cnpj, group=None):
+    """
+    Executa a sequência completa do RPA: primeiro o acessar_ecac.py para login e depois o app.py para processamento
+    
+    Args:
+        company_name: Nome da empresa
+        cnpj: CNPJ da empresa para acessar o ECAC
+        group: Grupo ao qual a empresa pertence (opcional)
+        
+    Returns:
+        bool: True se todo o processo foi bem-sucedido, False caso contrário
+    """
+    print(f"\n=== INICIANDO SEQUÊNCIA RPA PARA {company_name} ===")
+    print(f"1. Executando acessar_ecac.py para CNPJ: {cnpj}, Grupo: {group}")
+    
+    try:
+        # Chama o módulo acessar_ecac primeiro para fazer login
+        import acessar_ecac
+        result = acessar_ecac.main(cnpj=cnpj, group=group)
+        
+        if result:
+            print("✅ Acesso ao ECAC realizado com sucesso!")
+            print("2. Iniciando app.py para processar as competências...")
+            
+            # O app.py já é chamado automaticamente através do acessar_ecac.main()
+            # que inclui a importação e chamada do app.py após login bem-sucedido
+            return True
+        else:
+            print("❌ Falha no acesso ao ECAC. O processo RPA não pode continuar.")
+            return False
+    except Exception as e:
+        print(f"❌ Erro na execução da sequência RPA: {str(e)}")
+        traceback.print_exc()
+        return False
+
+@app.route('/save_banking_data', methods=['POST'])
+def save_banking_data():
+    """Endpoint para salvar os dados bancários sem iniciar o processo RPA."""
+    if not session.get('logged_in'):
+        return jsonify({'success': False, 'message': 'Não autorizado'}), 401
+    
+    try:
+        # Recebe os dados do JSON enviado pelo frontend
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': 'Nenhum dado recebido'}), 400
+        
+        # Extrai os dados necessários
+        group = data.get('group')
+        company_id = data.get('company_id')
+        cpf = data.get('cpf', '')
+        banco = data.get('banco', '')
+        agencia = data.get('agencia', '')
+        conta = data.get('conta', '')
+        dv = data.get('dv', '')
+        
+        # Validações básicas
+        if not all([group, company_id]):
+            return jsonify({'success': False, 'message': 'Grupo e ID da empresa são obrigatórios'}), 400
+        
+        # Encontra a empresa
+        company = get_company_by_id(group, company_id)
+        if not company:
+            return jsonify({'success': False, 'message': 'Empresa não encontrada'}), 404
+        
+        # Salva os dados bancários
+        dados_bancarios_path = salvar_dados_bancarios(group, company, cpf, banco, agencia, conta, dv)
+        
+        if dados_bancarios_path:
+            # Registra evento de atualização de dados bancários
+            try:
+                company_name = get_company_name(company)
+                nome_empresa_normalizado = company_name.strip().upper().replace(' ', '_')
+                eventos_dir = os.path.join('db', 'status', group, nome_empresa_normalizado)
+                if not os.path.exists(eventos_dir):
+                    os.makedirs(eventos_dir, exist_ok=True)
+                
+                eventos_path = os.path.join(eventos_dir, 'eventos.xlsx')
+                
+                evento = {
+                    'data': [datetime.datetime.now()],
+                    'acao': ['ATUALIZAÇÃO DE DADOS BANCÁRIOS'],
+                    'status': ['SUCESSO'],
+                    'competencia': ['N/A'],
+                    'observacao': [f"Dados bancários atualizados via interface web"]
+                }
+                
+                df_evento = pd.DataFrame(evento)
+                
+                # Se o arquivo já existe, adiciona o novo evento
+                if os.path.exists(eventos_path):
+                    try:
+                        df_existente = pd.read_excel(eventos_path)
+                        df_evento = pd.concat([df_evento, df_existente], ignore_index=True)
+                        # Limita a 100 eventos
+                        if len(df_evento) > 100:
+                            df_evento = df_evento.head(100)
+                    except Exception as e:
+                        print(f"Erro ao ler eventos existentes: {str(e)}")
+                
+                # Salva o evento
+                df_evento.to_excel(eventos_path, index=False)
+                print(f"Evento de atualização de dados bancários registrado em {eventos_path}")
+            except Exception as e:
+                print(f"Aviso: Não foi possível registrar evento: {str(e)}")
+            
+            return jsonify({
+                'success': True, 
+                'message': 'Dados bancários atualizados com sucesso',
+                'path': dados_bancarios_path
+            })
+        else:
+            return jsonify({'success': False, 'message': 'Erro ao salvar dados bancários'}), 500
+    
+    except Exception as e:
+        print(f"Erro ao processar requisição de dados bancários: {str(e)}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'message': f'Erro interno: {str(e)}'}), 500
+
+
+@app.route('/save_competencias_file', methods=['POST'])
+def save_competencias_file():
+    """Endpoint para salvar apenas o arquivo de competências."""
+    if not session.get('logged_in'):
+        return jsonify({'success': False, 'message': 'Não autorizado'}), 401
+    
+    try:
+        # Verifica se existe arquivo na requisição
+        if 'compFile' not in request.files:
+            return jsonify({'success': False, 'message': 'Nenhum arquivo enviado'}), 400
+        
+        comp_file = request.files['compFile']
+        if not comp_file or not comp_file.filename:
+            return jsonify({'success': False, 'message': 'Arquivo inválido'}), 400
+        
+        if not allowed_file(comp_file.filename):
+            return jsonify({'success': False, 'message': 'Tipo de arquivo não permitido. Use .xlsx ou .xls'}), 400
+        
+        # Obtém os dados do formulário
+        group = request.form.get('group')
+        company_id = request.form.get('company_id')
+        
+        if not group or not company_id:
+            return jsonify({'success': False, 'message': 'Grupo e ID da empresa são obrigatórios'}), 400
+        
+        # Encontra a empresa
+        company = get_company_by_id(group, company_id)
+        if not company:
+            return jsonify({'success': False, 'message': 'Empresa não encontrada'}), 404
+        
+        # Prepara o diretório para salvar o arquivo
+        company_name = get_company_name(company)
+        comp_dir = get_company_comp_file_path(group, company)
+        
+        # Gera um nome para o arquivo baseado na data/hora atual
+        comp_filename = secure_filename(f"comp_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}.xlsx")
+        comp_filepath = os.path.join(comp_dir, comp_filename)
+        
+        # Remove arquivos existentes de competência
+        try:
+            for file in os.listdir(comp_dir):
+                if file.endswith(('.xlsx', '.xls')):
+                    os.remove(os.path.join(comp_dir, file))
+                    print(f"Arquivo removido: {file}")
+        except Exception as e:
+            print(f"Erro ao limpar arquivos antigos: {str(e)}")
+        
+        # Salva o novo arquivo
+        comp_file.save(comp_filepath)
+        print(f"Arquivo salvo em: {comp_filepath}")
+        
+        # Cria a planilha de status com base nas competências
+        status_filepath = criar_planilha_status_empresa(group, company, comp_filepath)
+        
+        # Registra evento de upload de arquivo
+        try:
+            nome_empresa_normalizado = company_name.strip().upper().replace(' ', '_')
+            eventos_dir = os.path.join('db', 'status', group, nome_empresa_normalizado)
+            if not os.path.exists(eventos_dir):
+                os.makedirs(eventos_dir, exist_ok=True)
+            
+            eventos_path = os.path.join(eventos_dir, 'eventos.xlsx')
+            
+            evento = {
+                'data': [datetime.datetime.now()],
+                'acao': ['UPLOAD DE ARQUIVO'],
+                'status': ['SUCESSO'],
+                'competencia': ['Todas'],
+                'observacao': [f"Arquivo de competências {comp_filename} carregado via interface web"]
+            }
+            
+            df_evento = pd.DataFrame(evento)
+            
+            if os.path.exists(eventos_path):
+                try:
+                    df_existente = pd.read_excel(eventos_path)
+                    df_evento = pd.concat([df_evento, df_existente], ignore_index=True)
+                    if len(df_evento) > 100:
+                        df_evento = df_evento.head(100)
+                except Exception as e:
+                    print(f"Erro ao ler eventos existentes: {str(e)}")
+            
+            df_evento.to_excel(eventos_path, index=False)
+            print(f"Evento de upload de arquivo registrado em {eventos_path}")
+        except Exception as e:
+            print(f"Aviso: Não foi possível registrar evento: {str(e)}")
+        
+        return jsonify({
+            'success': True, 
+            'message': 'Arquivo salvo com sucesso',
+            'filename': comp_filename,
+            'status_file': status_filepath is not None
+        })
+    
+    except Exception as e:
+        print(f"Erro ao processar upload de arquivo: {str(e)}")
+        traceback.print_exc()
+        return jsonify({'success': False, 'message': f'Erro interno: {str(e)}'}), 500
+
 if __name__ == '__main__':
     # Verificar e criar usuário padrão se necessário
     create_default_user(EXCEL_PATH)
@@ -1153,8 +1410,36 @@ if __name__ == '__main__':
     group_counts = get_group_counts()
     print(f"Grupos disponíveis: {available_groups}")
     print(f"Contagem de empresas por grupo: {group_counts}")
-    # Inicia app.py em uma thread separada apenas se necessário para testes
-    # threading.Thread(target=run_app_py, daemon=True).start()
+    
+    # Importa o módulo acessar_ecac aqui para evitar problemas de importação circular
+    try:
+        import acessar_ecac
+        print("Módulo acessar_ecac importado com sucesso!")
+    except ImportError as e:
+        print(f"Erro ao importar módulo acessar_ecac: {str(e)}")
+    
+    # Função para executar a sequência acessar_ecac seguido de app.py
+    def execute_rpa_sequence(company_name, cnpj, group=None):
+        print(f"\n=== INICIANDO SEQUÊNCIA RPA PARA {company_name} ===")
+        print(f"1. Executando acessar_ecac.py para CNPJ: {cnpj}, Grupo: {group}")
+        
+        try:
+            # Chama o módulo acessar_ecac primeiro
+            result = acessar_ecac.main(cnpj=cnpj, group=group)
+            
+            if result:
+                print("✅ Acesso ao ECAC realizado com sucesso!")
+                print("2. Iniciando app.py para processar as competências...")
+                # O app.py será executado automaticamente através do acessar_ecac.main()
+                return True
+            else:
+                print("❌ Falha no acesso ao ECAC. O processo RPA não pode continuar.")
+                return False
+        except Exception as e:
+            print(f"❌ Erro na execução da sequência RPA: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return False
     
     # Inicia o servidor Flask
     print("Iniciando servidor Flask na porta 5000...")

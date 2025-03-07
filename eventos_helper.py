@@ -100,11 +100,15 @@ def obter_eventos(group, company_name, limit=10):
             data = row['data']
             if isinstance(data, pd.Timestamp):
                 data = data.strftime('%d/%m/%Y %H:%M')
-                
+            
+            # Mapeia 'acao' para 'tipo' e 'observacao' para 'descricao' caso existam
+            tipo = row['acao'] if 'acao' in row else row.get('tipo', 'Evento')
+            descricao = row['observacao'] if 'observacao' in row else row.get('descricao', '')
+            
             eventos.append({
                 'data': data,
-                'tipo': row['tipo'],
-                'descricao': row['descricao']
+                'tipo': tipo,
+                'descricao': descricao
             })
             
         return eventos

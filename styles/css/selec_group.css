@@ -1,0 +1,138 @@
+.modal-add-company {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    z-index: 1000;  /* Aumentado o z-index para garantir que fique acima de tudo */
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    overflow: auto;  /* Permite rolagem se o conteúdo for maior que a tela */
+}
+
+.modal-add-company.show {
+    display: flex;
+}
+
+.modal-add-company .modal-content {
+    background-color: #ffffff;
+    width: 90%;
+    max-width: 500px;
+    padding: 25px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    position: relative;
+    max-height: 90vh;  /* Limita a altura para evitar que fique maior que a tela */
+    overflow-y: auto;  /* Adiciona barra de rolagem vertical se necessário */
+}
+
+.modal-add-company .modal-close {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    font-size: 24px;
+    cursor: pointer;
+    color: #6c757d;
+}
+
+/* Estilização dos inputs e selects do modal */
+.modal-add-company label {
+    display: block;
+    margin-top: 15px;
+    margin-bottom: 5px;
+    font-weight: 500;
+    color: #2b2d42;
+}
+
+.modal-add-company input[type="text"],
+.modal-add-company select {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #dee2e6;
+    border-radius: 5px;
+    font-size: 14px;
+    transition: border-color 0.3s ease;
+}
+
+.modal-add-company input[type="text"]:focus,
+.modal-add-company select:focus {
+    border-color: var(--primary-color, #4361ee);
+    outline: none;
+}
+
+/* Botão Salvar Empresa já utiliza .primary-button definido globalmente */
+
+/* Estilos para opções de certificados */
+.cert-selection {
+    margin-top: 15px;
+}
+
+.cert-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 10px 0;
+}
+
+.cert-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.cert-option input[type="radio"] {
+    margin: 0;
+}
+
+.cert-option label {
+    margin: 0;
+    font-weight: normal;
+    display: inline;
+}
+
+#existingCertContainer,
+#newCertContainer {
+    margin-top: 10px;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border-radius: 5px;
+    border: 1px solid #dee2e6;
+}
+
+#existingCertSelect {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #dee2e6;
+    border-radius: 5px;
+    font-size: 14px;
+    transition: border-color 0.3s ease;
+}
+
+#existingCertSelect:focus {
+    border-color: var(--primary-color, #4361ee);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.25);
+}
+
+#newCertFile {
+    width: 100%;
+    padding: 8px 0;
+    margin-bottom: 15px;
+}
+
+#certPassword {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #dee2e6;
+    border-radius: 5px;
+    font-size: 14px;
+    transition: border-color 0.3s ease;
+}
+
+#certPassword:focus {
+    border-color: var(--primary-color, #4361ee);
+    outline: none;
+}
