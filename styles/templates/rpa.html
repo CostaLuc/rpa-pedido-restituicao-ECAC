@@ -447,6 +447,27 @@
                 });
             });
         });
+
+        // Adicionar ao início do bloco de script existente
+        document.addEventListener('DOMContentLoaded', function() {
+            const bancoInput = document.getElementById('banco');
+            if (bancoInput) {
+                bancoInput.addEventListener('blur', function() {
+                    // Garante 3 dígitos no código do banco, preservando zeros à esquerda
+                    this.value = this.value.padStart(3, '0');
+                });
+            }
+
+            // Se desejado, aplique a mesma lógica para agência/conta:
+            /*
+            const agenciaInput = document.getElementById('agencia');
+            if (agenciaInput) {
+                agenciaInput.addEventListener('blur', function() {
+                    this.value = this.value.padStart(4, '0');
+                });
+            }
+            */
+        });
     </script>
 </body>
 </html>

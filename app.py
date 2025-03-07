@@ -863,22 +863,12 @@ def salvar_documento(driver):
         print(f"Erro ao salvar documento: {str(e)}")
         return False
 
+# ...existing code...
+
 def preencher_dados_bancarios(driver, cpf_responsavel, banco, agencia, conta, dv, erro_valor_maior=False):
     """
     Preenche os dados bancários necessários para a restituição.
     Simula digitação humana para todos os campos.
-    
-    Args:
-        driver: Instância do WebDriver
-        cpf_responsavel: CPF do responsável para receber a restituição
-        banco: Código do banco (padrão: 001 - Banco do Brasil)
-        agencia: Número da agência
-        conta: Número da conta
-        dv: Dígito verificador
-        erro_valor_maior: Flag indicando se há erro de valor maior que disponível
-    
-    Returns:
-        True se os dados foram preenchidos com sucesso, False caso contrário
     """
     try:
         print("\n==== PREENCHENDO DADOS BANCÁRIOS ====")
@@ -892,62 +882,42 @@ def preencher_dados_bancarios(driver, cpf_responsavel, banco, agencia, conta, dv
             print("Clicando no botão de prosseguir para tela de dados bancários...")
             prosseguir.click()
             time.sleep(2)  # Espera para a página carregar
-        
-        # Cria a action chain para simular digitação humana
-        
+
         action = ActionChains(driver)
         
-        # Função auxiliar para simular digitação humana em qualquer campo
         def digitar_como_humano(campo, texto, destacar=True):
             if not texto:
                 print(f"Campo vazio, pulando...")
                 return True
-                
-            try:                
-                # Rola até o elemento e clica para garantir foco
+            try:
                 driver.execute_script("arguments[0].scrollIntoView({behavior: 'auto', block: 'center'});", campo)
                 time.sleep(0.5)
                 campo.click()
 
-                # Digita cada caractere com pausas aleatórias para simular digitação humana
                 for i, caractere in enumerate(texto):
-                    # Pausa aleatória entre digitações (100-300ms)
                     pausa = random.uniform(0.1, 0.3)
                     time.sleep(pausa)
-                    
-                    # Envia o caractere atual
                     action.send_keys(caractere).perform()
-                    
-                    # Pausa mais longa a cada 3 caracteres (simula ritmo humano)
                     if i > 0 and i % 3 == 0:
                         time.sleep(random.uniform(0.1, 0.4))
-                        
-                # Pressiona Tab para finalizar a entrada (confirma o valor)
                 time.sleep(0.5)
                 action.send_keys(Keys.TAB).perform()
                 return True
-                
             except Exception as e:
                 print(f"Erro ao digitar texto '{texto}': {str(e)}")
                 return False
 
-        # Insere o CPF do responsável simulando digitação humana
+        # Preenche o CPF do responsável (código original mantido)
         try:
             print(f"Preenchendo CPF do responsável: {cpf_responsavel}")
-            
-            # Formata o CPF (removendo pontos e traço)
             cpf_limpo = cpf_responsavel.replace('.', '').replace('-', '')
-            
-            # Lista de possíveis seletores para o campo de CPF
             seletores_cpf = [
                 "p-inputmask[formcontrolname='cpfResponsavelPreenchimento'] input", 
                 "input.p-inputmask",
                 "input[placeholder='999.999.999-99']",
                 "#cpfResponsavelPreenchimento"
             ]
-            
             cpf_input = None
-            # Tenta cada seletor até encontrar o campo
             for seletor in seletores_cpf:
                 try:
                     print(f"Tentando localizar campo de CPF com seletor: {seletor}")
@@ -959,9 +929,7 @@ def preencher_dados_bancarios(driver, cpf_responsavel, banco, agencia, conta, dv
                         break
                 except:
                     continue
-            
             if not cpf_input:
-                # Última tentativa com XPath mais específico baseado no HTML fornecido
                 try:
                     cpf_input = WebDriverWait(driver, 5).until(
                         EC.presence_of_element_located((By.XPATH, "//p-inputmask[@formcontrolname='cpfResponsavelPreenchimento']/input"))
@@ -969,17 +937,15 @@ def preencher_dados_bancarios(driver, cpf_responsavel, banco, agencia, conta, dv
                     print("Campo de CPF encontrado pelo XPath específico")
                 except:
                     print("⚠️ Não foi possível encontrar o campo de CPF. Continuando mesmo assim...")
-                    
             if cpf_input:
                 digitar_como_humano(cpf_input, cpf_limpo)
                 print("CPF preenchido com sucesso usando simulação de digitação humana!")
             else:
                 print("Campo de CPF não encontrado para preenchimento.")
-                
         except Exception as e:
             print(f"Erro ao preencher CPF: {str(e)}")
-            
-        # Seleção do tipo de conta bancária
+
+        # Seleção do tipo de conta bancária (código original mantido)
         try:
             print("Selecionando tipo de conta: Conta Corrente")
             tipodeconta = Select(WebDriverWait(driver, 10).until(
@@ -990,51 +956,55 @@ def preencher_dados_bancarios(driver, cpf_responsavel, banco, agencia, conta, dv
             time.sleep(1)
         except Exception as e:
             print(f"Erro ao selecionar tipo de conta: {str(e)}")
-            
-        # Preenchimento do código do banco
+
+        # +++ CORREÇÃO: Garantir que valores sejam usados como string com zeros à esquerda +++
+        banco_str = str(banco)
+        agencia_str = str(agencia)
+        conta_str = str(conta)
+        dv_str = str(dv) if dv else ""
+
+        # Preenchimento do código do banco (mantendo CSS selector)
         try:
-            print(f"Preenchendo código do banco: {banco}")
+            print(f"Preenchendo código do banco: {banco_str}")
             banco_input = WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.XPATH, '/html/body/div/perdcomp-root/div/div[2]/perdcomp-template-documento/div/perdcomp-dados-gerais/form/perdcomp-fieldset[4]/div/div/div[2]/div/div[2]/div/div[2]/div[1]/p-inputmask/input'))
             )
             time.sleep(0.5)
-            digitar_como_humano(banco_input, banco)
+            digitar_como_humano(banco_input, banco_str)
             print("Código do banco preenchido com sucesso!")
         except Exception as e:
             print(f"Erro ao preencher código do banco: {str(e)}")
-            # Tenta encontrar o campo usando outros seletores
             try:
-                # Tenta encontrar usando ID ou seletores alternativos
                 banco_input = WebDriverWait(driver, 5).until(
                     EC.presence_of_element_located((By.CSS_SELECTOR, "input#codigo"))
                 )
                 time.sleep(0.5)
-                digitar_como_humano(banco_input, banco)
+                digitar_como_humano(banco_input, banco_str)
                 print("Código do banco preenchido com sucesso usando seletor alternativo!")
             except Exception as e2:
                 print(f"Erro ao preencher código do banco com seletor alternativo: {str(e2)}")
-            
-        # --- Agência ---
-        print(f"Preenchendo agência: {agencia}")
+
+        # Agência (mantendo zeros à esquerda)
+        print(f"Preenchendo agência: {agencia_str}")
         agencia_input = WebDriverWait(driver, 15).until(
             EC.visibility_of_element_located((By.CSS_SELECTOR, "input#agencia"))
         )
-        digitar_como_humano(agencia_input, agencia)
+        digitar_como_humano(agencia_input, agencia_str)
 
-        # --- Conta Corrente ---
-        print(f"Preenchendo conta: {conta}")
+        # Conta (mantendo zeros à esquerda)
+        print(f"Preenchendo conta: {conta_str}")
         conta_input = WebDriverWait(driver, 10).until(
             EC.visibility_of_element_located((By.CSS_SELECTOR, "input#numeroConta"))
         )
-        digitar_como_humano(conta_input, conta)
+        digitar_como_humano(conta_input, conta_str)
 
-        # --- Dígito Verificador ---
-        if dv:
-            print(f"Preenchendo DV: {dv}")
+        # Dígito Verificador (mantendo zeros à esquerda, se existir)
+        if dv_str:
+            print(f"Preenchendo DV: {dv_str}")
             dv_input = WebDriverWait(driver, 10).until(
                 EC.visibility_of_element_located((By.CSS_SELECTOR, "input#dvConta"))
             )
-            digitar_como_humano(dv_input, dv)
+            digitar_como_humano(dv_input, dv_str)
 
         # Se tem erro de valor maior, chama a função salvar em vez de prosseguir
         if erro_valor_maior:
@@ -1051,6 +1021,7 @@ def preencher_dados_bancarios(driver, cpf_responsavel, banco, agencia, conta, dv
         print(f"Erro nos dados bancários: {str(e)}")
         return False
 
+# ...existing code...
 def conferencia(driver, row_data, codigos_documento, erro_valor_maior=False):
     """
     Realiza o encerramento do processo verificando se os valores correspondem.

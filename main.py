@@ -471,17 +471,26 @@ def salvar_dados_bancarios(group, company, cpf, banco, agencia, conta, dv):
         company_name = get_company_name(company)
         cnpj = company.get('CNPJ', company.get('cnpj', ''))
         
+        # Garantir que o banco, agência e conta sejam armazenados como strings
+        # para preservar zeros à esquerda
+        banco_str = str(banco).zfill(3)  # Garante 3 dígitos para o código do banco
+        agencia_str = str(agencia)
+        conta_str = str(conta)
+        dv_str = str(dv) if dv else ""
+        
         # Prepara os novos dados
         novo_registro = pd.DataFrame({
             'empresa': [company_name],
             'cnpj': [cnpj],
             'cpf': [cpf],
-            'banco': [banco],
-            'agencia': [agencia],
-            'conta': [conta],
-            'dv': [dv],
+            'banco': [banco_str],  # Usar a versão formatada
+            'agencia': [agencia_str],
+            'conta': [conta_str],
+            'dv': [dv_str],
             'atualizado_em': [datetime.datetime.now()]
         })
+        
+        # Resto do código permanece igual...
         
         # Verifica se o arquivo já existe
         if os.path.exists(dados_bancarios_path):
